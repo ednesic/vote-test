@@ -27,19 +27,21 @@ func main() {
 		Handler: initRoutes(),
 	}
 
-	comp := natsutil.NewStreamingComponent(clientID)
-	err := comp.ConnectToNATSStreaming(
+	streamingComponent = natsutil.NewStreamingComponent(clientID)
+	connectNATS(streamingComponent)
+
+	log.Println("HTTP Sever listening...")
+	server.ListenAndServe()
+}
+
+func connectNATS(cmp *natsutil.StreamingComponent) {
+	err := cmp.ConnectToNATSStreaming(
 		clusterID,
 		stan.NatsURL(stan.DefaultNatsURL),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	//arrumar
-	streamingComponent = comp
-
-	log.Println("HTTP Sever listening...")
-	server.ListenAndServe()
 }
 
 func initRoutes() *mux.Router {
@@ -57,18 +59,23 @@ func createVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go publishEvent(streamingComponent, &vote)
+	err = publishEvent(streamingComponent, &vote)
 
-	fmt.Println("created vote")
 	w.Header().Set("Content-Type", "application/json")
+	if err != nil {
+		fmt.Println("Could not publish message", err)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		connectNATS(streamingComponent)
+		return
+	}
+
 	w.WriteHeader(http.StatusCreated)
 	j, _ := json.Marshal(vote)
 	w.Write(j)
 }
 
-func publishEvent(component *natsutil.StreamingComponent, vote *pb.VoteRequest) {
+func publishEvent(component *natsutil.StreamingComponent, vote *pb.VoteRequest) error {
 	sc := component.NATS()
 	eventMsg := []byte(vote.GetUser())
-	sc.Publish(channel, eventMsg)
-	log.Println("Published message on channel: " + channel)
+	return sc.Publish(channel, eventMsg)
 }
