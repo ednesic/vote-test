@@ -24,6 +24,10 @@ func main() {
 	err := comp.ConnectToNATSStreaming(
 		clusterID,
 		stan.NatsURL(stan.DefaultNatsURL),
+		stan.Pings(10, 5),
+		stan.SetConnectionLostHandler(func(_ stan.Conn, reason error) {
+			log.Fatalf("Connection lost, reason: %v", reason)
+		}),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -34,6 +38,7 @@ func main() {
 
 		vote := pb.VoteRequest{}
 		err := proto.Unmarshal(msg.Data, &vote)
+		//verificar erro
 		if err == nil {
 			fmt.Println(vote)
 		}

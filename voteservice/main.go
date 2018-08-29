@@ -39,6 +39,10 @@ func connectNATS(cmp *natsutil.StreamingComponent) {
 	err := cmp.ConnectToNATSStreaming(
 		clusterID,
 		stan.NatsURL(stan.DefaultNatsURL),
+		stan.Pings(10, 5),
+		stan.SetConnectionLostHandler(func(_ stan.Conn, reason error) {
+			log.Fatalf("Connection lost, reason: %v", reason)
+		}),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -66,7 +70,6 @@ func createVote(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Println("Could not publish message", err)
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		connectNATS(streamingComponent)
 		return
 	}
 
