@@ -8,6 +8,7 @@ import (
 
 	"github.com/ednesic/vote-test/natsutil"
 	"github.com/ednesic/vote-test/pb"
+	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/go-nats-streaming"
 )
@@ -76,7 +77,10 @@ func createVote(w http.ResponseWriter, r *http.Request) {
 
 func publishEvent(component *natsutil.StreamingComponent, vote *pb.VoteRequest) error {
 	sc := component.NATS()
-	voteJSON, _ := json.Marshal(vote)
+	voteJSON, err := proto.Marshal(vote)
+	if err != nil {
+		return err
+	}
 	eventMsg := []byte(voteJSON)
 	return sc.Publish(channel, eventMsg)
 }

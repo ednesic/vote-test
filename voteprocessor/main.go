@@ -1,13 +1,13 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"runtime"
 
 	"github.com/ednesic/vote-test/natsutil"
 	"github.com/ednesic/vote-test/pb"
+	"github.com/gogo/protobuf/proto"
 	"github.com/nats-io/go-nats-streaming"
 )
 
@@ -33,7 +33,7 @@ func main() {
 	sc.QueueSubscribe(channel, queueGroup, func(msg *stan.Msg) {
 
 		vote := pb.VoteRequest{}
-		err := json.Unmarshal(msg.Data, &vote)
+		err := proto.Unmarshal(msg.Data, &vote)
 		if err == nil {
 			fmt.Println(vote)
 		}
