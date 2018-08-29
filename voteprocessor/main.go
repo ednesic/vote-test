@@ -14,16 +14,13 @@ import (
 const (
 	clusterID  = "test-cluster"
 	clientID   = "order-query-store2"
-	channel    = "event.Channel"
+	channel    = "create-vote"
 	durableID  = "store-durable1"
 	queueGroup = "order-query-store-group"
 )
 
 func main() {
-	// Register new NATS component within the system.
 	comp := natsutil.NewStreamingComponent(clientID)
-
-	// Connect to NATS Streaming server
 	err := comp.ConnectToNATSStreaming(
 		clusterID,
 		stan.NatsURL(stan.DefaultNatsURL),
@@ -31,11 +28,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Get the NATS Streaming Connection
 	sc := comp.NATS()
-	// aw, _ := time.ParseDuration("60s")
+
 	sc.QueueSubscribe(channel, queueGroup, func(msg *stan.Msg) {
-		// msg.Ack() // Manual ACK
 
 		vote := pb.VoteRequest{}
 		err := json.Unmarshal(msg.Data, &vote)
@@ -44,9 +39,6 @@ func main() {
 		}
 		fmt.Println("passei")
 	}, stan.DurableName(durableID),
-	// 	stan.MaxInflight(25),
-	// 	stan.SetManualAckMode(),
-	// 	stan.AckWait(aw),
 	)
 	runtime.Goexit()
 }
