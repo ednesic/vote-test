@@ -81,6 +81,5 @@ func publishEvent(component *natsutil.StreamingComponent, vote *pb.VoteRequest) 
 	if err != nil {
 		return err
 	}
-	eventMsg := []byte(voteJSON)
-	return sc.Publish(channel, eventMsg)
+	return sc.Publish(channel, voteJSON)
 }
