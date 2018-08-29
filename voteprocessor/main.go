@@ -37,7 +37,6 @@ func main() {
 		if err == nil {
 			fmt.Println(vote)
 		}
-		fmt.Println("passei")
 	}, stan.DurableName(durableID),
 	)
 	runtime.Goexit()

@@ -30,7 +30,7 @@ func main() {
 	streamingComponent = natsutil.NewStreamingComponent(clientID)
 	connectNATS(streamingComponent)
 
-	log.Println("HTTP Sever listening...")
+	log.Println("HTTP Sever listening on " + port)
 	server.ListenAndServe()
 }
 
@@ -76,6 +76,7 @@ func createVote(w http.ResponseWriter, r *http.Request) {
 
 func publishEvent(component *natsutil.StreamingComponent, vote *pb.VoteRequest) error {
 	sc := component.NATS()
-	eventMsg := []byte(vote.GetUser())
+	voteJSON, _ := json.Marshal(vote)
+	eventMsg := []byte(voteJSON)
 	return sc.Publish(channel, eventMsg)
 }
