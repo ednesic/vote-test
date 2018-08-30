@@ -42,15 +42,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	sc := comp.NATS()
-	sc.QueueSubscribe(s.VoteChannel, queueGroup, func(msg *stan.Msg) {
 
+	comp.NATS().QueueSubscribe(s.VoteChannel, queueGroup, func(msg *stan.Msg) {
 		vote := pb.Vote{}
 		err := proto.Unmarshal(msg.Data, &vote)
-		//verificar erro
-		if err == nil {
-			fmt.Println(vote)
+		if err != nil {
+			fmt.Println("Falha ao gerar Voto", err)
 		}
+		fmt.Println(vote)
 	}, stan.DurableName(durableID),
 	)
 	runtime.Goexit()
