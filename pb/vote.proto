@@ -1,14 +1,7 @@
 syntax = "proto3";
 option go_package="pb";
 
-service Vote {
-    rpc CreateVote(VoteRequest) returns (VoteResponse) {}
-}
-
-message VoteRequest {
-    string user = 1;
-}
-
-message VoteResponse {
-    string error = 1;
+message Vote {
+    int32  id   = 1;
+    string user = 2;
 }

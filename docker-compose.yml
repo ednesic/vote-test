@@ -1,0 +1,19 @@
+version: '3'
+services:
+  vote-service:
+    build:
+      context: ./voteservice
+      dockerfile: ../Dockerfile
+    env_file:
+      - commons.env
+    environment:
+      PORT: 9222
+  vote-processor:
+    build: 
+      context: ./voteprocessor
+      dockerfile: ../Dockerfile
+    env_file:
+      - commons.env
+  stan:
+    image: nats-streaming
+    command: -p 80 -m 8223
