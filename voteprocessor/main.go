@@ -13,8 +13,8 @@ import (
 )
 
 type Specification struct {
-	ClusterID   string `envconfig:"CLUSTER_ID" default:"test-cluster" required:"true"`
-	VoteChannel string `envconfig:"VOTE_CHANNEL" default:"create-vote" required:"true"`
+	VoteChannel string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
+	NatsServer  string `envconfig:"NATS_SERVER" default:"create-vote"`
 }
 
 const (
@@ -32,8 +32,8 @@ func main() {
 	}
 	comp := natsutil.NewStreamingComponent(clientID)
 	err = comp.ConnectToNATSStreaming(
-		s.ClusterID,
-		stan.NatsURL(stan.DefaultNatsURL),
+		"test-cluster",
+		stan.NatsURL(s.NatsServer),
 		stan.Pings(10, 5),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, reason error) {
 			log.Fatalf("Connection lost, reason: %v", reason)

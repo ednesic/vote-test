@@ -18,9 +18,9 @@ const clientID = "vote-service"
 
 // Variaveis de ambiente
 type Specification struct {
-	Port        string `envconfig:"PORT" default:":9222" required:"true"`
-	ClusterID   string `envconfig:"CLUSTER_ID" default:"test-cluster" required:"true"`
-	VoteChannel string `envconfig:"VOTE_CHANNEL" default:"create-vote" required:"true"`
+	Port        string `envconfig:"PORT" default:":9222"`
+	VoteChannel string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
+	NatsServer  string `envconfig:"NATS_SERVER" default:"localhost:4222"`
 }
 
 var (
@@ -48,8 +48,8 @@ func main() {
 
 func connectNATS(cmp *natsutil.StreamingComponent) {
 	err := cmp.ConnectToNATSStreaming(
-		s.ClusterID,
-		stan.NatsURL(stan.DefaultNatsURL),
+		"test-cluster",
+		stan.NatsURL(s.NatsServer),
 		stan.Pings(10, 5),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, reason error) {
 			log.Fatalf("Connection lost, reason: %v", reason)

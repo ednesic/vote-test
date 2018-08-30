@@ -6,14 +6,21 @@ services:
       dockerfile: ../Dockerfile
     env_file:
       - commons.env
+    depends_on:
+      - stan
     environment:
-      PORT: 9222
+      PORT: 
+    ports:
+      - 8080:9222
+    restart: on-failure
   vote-processor:
     build: 
       context: ./voteprocessor
       dockerfile: ../Dockerfile
     env_file:
       - commons.env
+    depends_on:
+      - stan
+    restart: on-failure
   stan:
     image: nats-streaming
-    command: -p 80 -m 8223
