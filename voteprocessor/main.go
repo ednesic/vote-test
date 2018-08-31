@@ -13,9 +13,9 @@ import (
 )
 
 type Specification struct {
-	voteChannel   string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
-	natsClusterID string `envconfig:"NATS_CLUSTER_ID" default:"test-cluster"`
-	natsServer    string `envconfig:"NATS_SERVER" default:"localhost:4222"`
+	VoteChannel   string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
+	NatsClusterID string `envconfig:"NATS_CLUSTER_ID" default:"test-cluster"`
+	NatsServer    string `envconfig:"NATS_SERVER" default:"localhost:4222"`
 }
 
 const (
@@ -33,8 +33,8 @@ func main() {
 	}
 	comp := natsutil.NewStreamingComponent(clientID)
 	err = comp.ConnectToNATSStreaming(
-		s.natsClusterID,
-		stan.NatsURL(s.natsServer),
+		s.NatsClusterID,
+		stan.NatsURL(s.NatsServer),
 		stan.Pings(10, 5),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, reason error) {
 			log.Fatalf("Connection lost, reason: %v", reason)
@@ -44,7 +44,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	comp.NATS().QueueSubscribe(s.voteChannel, queueGroup, func(msg *stan.Msg) {
+	comp.NATS().QueueSubscribe(s.VoteChannel, queueGroup, func(msg *stan.Msg) {
 		vote := pb.Vote{}
 		err := proto.Unmarshal(msg.Data, &vote)
 		if err != nil {
