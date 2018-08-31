@@ -13,14 +13,15 @@ import (
 )
 
 type Specification struct {
-	VoteChannel string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
-	NatsServer  string `envconfig:"NATS_SERVER" default:"create-vote"`
+	voteChannel   string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
+	natsClusterID string `envconfig:"NATS_CLUSTER_ID" default:"test-cluster"`
+	natsServer    string `envconfig:"NATS_SERVER" default:"localhost:4222"`
 }
 
 const (
-	clientID   = "order-query-store2"
-	durableID  = "store-durable1"
-	queueGroup = "order-query-store-group"
+	clientID   = "vote-processor"
+	durableID  = "store-durable"
+	queueGroup = "vote-processor-q"
 )
 
 var s Specification
@@ -32,8 +33,8 @@ func main() {
 	}
 	comp := natsutil.NewStreamingComponent(clientID)
 	err = comp.ConnectToNATSStreaming(
-		"test-cluster",
-		stan.NatsURL(s.NatsServer),
+		s.natsClusterID,
+		stan.NatsURL(s.natsServer),
 		stan.Pings(10, 5),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, reason error) {
 			log.Fatalf("Connection lost, reason: %v", reason)
@@ -43,7 +44,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	comp.NATS().QueueSubscribe(s.VoteChannel, queueGroup, func(msg *stan.Msg) {
+	comp.NATS().QueueSubscribe(s.voteChannel, queueGroup, func(msg *stan.Msg) {
 		vote := pb.Vote{}
 		err := proto.Unmarshal(msg.Data, &vote)
 		if err != nil {

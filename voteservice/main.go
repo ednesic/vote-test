@@ -17,39 +17,31 @@ import (
 const clientID = "vote-service"
 
 // Variaveis de ambiente
-type Specification struct {
-	Port        string `envconfig:"PORT" default:":9222"`
-	VoteChannel string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
-	NatsServer  string `envconfig:"NATS_SERVER" default:"localhost:4222"`
-}
+type server struct {
+	port          string `envconfig:"PORT" default:"9222"`
+	natsClusterID string `envconfig:"NATS_CLUSTER_ID" default:"test-cluster"`
+	voteChannel   string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
+	natsServer    string `envconfig:"NATS_SERVER" default:"localhost:4222"`
 
-var (
+	srv     *http.Server
 	strmCmp *natsutil.StreamingComponent
-	s       Specification
-)
-
-func main() {
-	err := envconfig.Process("", &s)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	server := &http.Server{
-		Addr:    s.Port,
-		Handler: initRoutes(),
-	}
-
-	strmCmp = natsutil.NewStreamingComponent(clientID)
-	connectNATS(strmCmp)
-
-	log.Println("HTTP Sever listening on " + s.Port)
-	server.ListenAndServe()
 }
 
-func connectNATS(cmp *natsutil.StreamingComponent) {
+func (s *server) run() {
+	server := &http.Server{
+		Addr:    ":" + s.port,
+		Handler: s.initRoutes(),
+	}
+	s.strmCmp = natsutil.NewStreamingComponent(clientID)
+	s.connectNATS(s.strmCmp)
+	log.Println("HTTP Sever listening on " + s.port)
+	log.Fatal(server.ListenAndServe())
+}
+
+func (s *server) connectNATS(cmp *natsutil.StreamingComponent) {
 	err := cmp.ConnectToNATSStreaming(
-		"test-cluster",
-		stan.NatsURL(s.NatsServer),
+		s.natsClusterID,
+		stan.NatsURL(s.natsServer),
 		stan.Pings(10, 5),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, reason error) {
 			log.Fatalf("Connection lost, reason: %v", reason)
@@ -60,13 +52,13 @@ func connectNATS(cmp *natsutil.StreamingComponent) {
 	}
 }
 
-func initRoutes() *mux.Router {
+func (s *server) initRoutes() *mux.Router {
 	router := mux.NewRouter()
-	router.HandleFunc("/vote", createVote).Methods("POST")
+	router.HandleFunc("/vote", s.createVote).Methods("POST")
 	return router
 }
 
-func createVote(w http.ResponseWriter, r *http.Request) {
+func (s *server) createVote(w http.ResponseWriter, r *http.Request) {
 	var vote pb.Vote
 
 	err := json.NewDecoder(r.Body).Decode(&vote)
@@ -75,7 +67,7 @@ func createVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = publishEvent(strmCmp, &vote)
+	err = s.publishEvent(s.strmCmp, &vote)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
@@ -89,11 +81,20 @@ func createVote(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func publishEvent(component *natsutil.StreamingComponent, vote *pb.Vote) error {
+func (s *server) publishEvent(component *natsutil.StreamingComponent, vote *pb.Vote) error {
 	sc := component.NATS()
 	voteJSON, err := proto.Marshal(vote)
 	if err != nil {
 		return err
 	}
-	return sc.Publish(s.VoteChannel, voteJSON)
+	return sc.Publish(s.voteChannel, voteJSON)
+}
+
+func main() {
+	var server server
+	err := envconfig.Process("", &server)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	server.run()
 }
