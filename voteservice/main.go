@@ -18,10 +18,10 @@ const clientID = "vote-service"
 
 // Variaveis de ambiente
 type server struct {
-	port          string `envconfig:"PORT" default:"9222"`
-	natsClusterID string `envconfig:"NATS_CLUSTER_ID" default:"test-cluster"`
-	voteChannel   string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
-	natsServer    string `envconfig:"NATS_SERVER" default:"localhost:4222"`
+	Port          string `envconfig:"PORT" default:"9222"`
+	NatsClusterID string `envconfig:"NATS_CLUSTER_ID" default:"test-cluster"`
+	VoteChannel   string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
+	NatsServer    string `envconfig:"NATS_SERVER" default:"localhost:4222"`
 
 	srv     *http.Server
 	strmCmp *natsutil.StreamingComponent
@@ -29,19 +29,19 @@ type server struct {
 
 func (s *server) run() {
 	server := &http.Server{
-		Addr:    ":" + s.port,
+		Addr:    ":" + s.Port,
 		Handler: s.initRoutes(),
 	}
 	s.strmCmp = natsutil.NewStreamingComponent(clientID)
 	s.connectNATS(s.strmCmp)
-	log.Println("HTTP Sever listening on " + s.port)
+	log.Println("HTTP Sever listening on " + s.Port)
 	log.Fatal(server.ListenAndServe())
 }
 
 func (s *server) connectNATS(cmp *natsutil.StreamingComponent) {
 	err := cmp.ConnectToNATSStreaming(
-		s.natsClusterID,
-		stan.NatsURL(s.natsServer),
+		s.NatsClusterID,
+		stan.NatsURL(s.NatsServer),
 		stan.Pings(10, 5),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, reason error) {
 			log.Fatalf("Connection lost, reason: %v", reason)
@@ -87,14 +87,14 @@ func (s *server) publishEvent(component *natsutil.StreamingComponent, vote *pb.V
 	if err != nil {
 		return err
 	}
-	return sc.Publish(s.voteChannel, voteJSON)
+	return sc.Publish(s.VoteChannel, voteJSON)
 }
 
 func main() {
-	var server server
-	err := envconfig.Process("", &server)
+	var s server
+	err := envconfig.Process("", &s)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	server.run()
+	s.run()
 }

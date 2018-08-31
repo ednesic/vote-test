@@ -9,17 +9,17 @@ import (
 )
 
 type server struct {
-	port string `envconfig:"PORT" default:"9223"`
+	Port string `envconfig:"PORT" default:"9223"`
 
 	srv *http.Server
 }
 
 func (s *server) run() {
 	s.srv = &http.Server{
-		Addr:    ":" + s.port,
+		Addr:    ":" + s.Port,
 		Handler: s.initRoutes(),
 	}
-	log.Println("HTTP Sever listening on " + s.port)
+	log.Println("HTTP Sever listening on " + s.Port)
 	log.Fatal(s.srv.ListenAndServe())
 }
 
