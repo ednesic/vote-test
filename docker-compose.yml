@@ -8,8 +8,6 @@ services:
       - commons.env
     depends_on:
       - stan
-    environment:
-      PORT: 
     ports:
       - 8080:9222
     restart: on-failure

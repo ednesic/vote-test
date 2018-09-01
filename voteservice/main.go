@@ -28,14 +28,13 @@ var errCodeToMessage = map[int]string{
 	ErrInvalidData: "Invalid Vote Data",
 }
 
-const clientID = "vote-service"
-
 // Variaveis de ambiente
 type server struct {
 	Port          string `envconfig:"PORT" default:"9222"`
 	NatsClusterID string `envconfig:"NATS_CLUSTER_ID" default:"test-cluster"`
 	VoteChannel   string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
 	NatsServer    string `envconfig:"NATS_SERVER" default:"localhost:4222"`
+	ClientID      string `envconfig:"CLIENT_ID" default:"vote-service"`
 
 	srv     *http.Server
 	strmCmp *natsutil.StreamingComponent
@@ -47,7 +46,7 @@ func (s *server) run() {
 		Handler: s.initRoutes(),
 	}
 
-	s.strmCmp = natsutil.NewStreamingComponent(clientID)
+	s.strmCmp = natsutil.NewStreamingComponent(s.ClientID)
 	err := s.strmCmp.ConnectToNATSStreaming(
 		s.NatsClusterID,
 		stan.NatsURL(s.NatsServer),

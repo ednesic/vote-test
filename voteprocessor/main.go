@@ -28,22 +28,18 @@ type Specification struct {
 	VoteChannel   string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
 	NatsClusterID string `envconfig:"NATS_CLUSTER_ID" default:"test-cluster"`
 	NatsServer    string `envconfig:"NATS_SERVER" default:"localhost:4222"`
+	ClientID      string `envconfig:"CLIENT_ID" default:"vote-processor"`
+	DurableID     string `envconfig:"DURABLE_ID" default:"store-durable"`
+	QueueGroup    string `envconfig:"QUEUE_GROUP" default:"vote-processor-q"`
 }
 
-const (
-	clientID   = "vote-processor"
-	durableID  = "store-durable"
-	queueGroup = "vote-processor-q"
-)
-
-var s Specification
-
 func main() {
+	var s Specification
 	err := envconfig.Process("", &s)
 	if err != nil {
 		log.Fatal(errCodeToMessage[ErrEnvVarFail], err.Error())
 	}
-	comp := natsutil.NewStreamingComponent(clientID)
+	comp := natsutil.NewStreamingComponent(s.ClientID)
 	err = comp.ConnectToNATSStreaming(
 		s.NatsClusterID,
 		stan.NatsURL(s.NatsServer),
@@ -56,7 +52,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	comp.NATS().QueueSubscribe(s.VoteChannel, queueGroup, procVote, stan.DurableName(durableID))
+	comp.NATS().QueueSubscribe(s.VoteChannel, s.QueueGroup, procVote, stan.DurableName(s.DurableID))
 	runtime.Goexit()
 }
 
