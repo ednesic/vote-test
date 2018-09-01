@@ -14,6 +14,20 @@ import (
 	"github.com/nats-io/go-nats-streaming"
 )
 
+const (
+	ErrEnvVarFail int = iota + 1
+	ErrConnLost
+	ErrFailPubVote
+	ErrInvalidData
+)
+
+var errCodeToMessage = map[int]string{
+	ErrEnvVarFail:  "Failed to get environment variables:",
+	ErrConnLost:    "Connection lost:",
+	ErrFailPubVote: "Failed to publish vote",
+	ErrInvalidData: "Invalid Vote Data",
+}
+
 const clientID = "vote-service"
 
 // Variaveis de ambiente
@@ -32,24 +46,22 @@ func (s *server) run() {
 		Addr:    ":" + s.Port,
 		Handler: s.initRoutes(),
 	}
-	s.strmCmp = natsutil.NewStreamingComponent(clientID)
-	s.connectNATS(s.strmCmp)
-	log.Println("HTTP Sever listening on " + s.Port)
-	log.Fatal(server.ListenAndServe())
-}
 
-func (s *server) connectNATS(cmp *natsutil.StreamingComponent) {
-	err := cmp.ConnectToNATSStreaming(
+	s.strmCmp = natsutil.NewStreamingComponent(clientID)
+	err := s.strmCmp.ConnectToNATSStreaming(
 		s.NatsClusterID,
 		stan.NatsURL(s.NatsServer),
 		stan.Pings(10, 5),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, reason error) {
-			log.Fatalf("Connection lost, reason: %v", reason)
+			log.Fatal(errCodeToMessage[ErrConnLost], reason)
 		}),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	log.Println("HTTP Sever listening on " + s.Port)
+	log.Fatal(server.ListenAndServe())
 }
 
 func (s *server) initRoutes() *mux.Router {
@@ -63,7 +75,7 @@ func (s *server) createVote(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&vote)
 	if err != nil {
-		http.Error(w, "Invalid Order Data", 500)
+		http.Error(w, errCodeToMessage[ErrInvalidData], 500)
 		return
 	}
 
@@ -71,7 +83,7 @@ func (s *server) createVote(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
-		fmt.Println("Could not publish message", err)
+		fmt.Println(errCodeToMessage[ErrFailPubVote], err)
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		return
 	}
@@ -94,7 +106,7 @@ func main() {
 	var s server
 	err := envconfig.Process("", &s)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal(errCodeToMessage[ErrEnvVarFail], err.Error())
 	}
 	s.run()
 }
