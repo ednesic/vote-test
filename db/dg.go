@@ -1,19 +1,9 @@
 package db
 
 import (
-	"log"
-
 	"github.com/kelseyhightower/envconfig"
 	mgo "gopkg.in/mgo.v2"
 )
-
-const (
-	ErrEnvVarFail int = iota + 1
-)
-
-var errCodeToMessage = map[int]string{
-	ErrEnvVarFail: "Failed to get environment variables:",
-}
 
 var mgoSession *mgo.Session
 
@@ -28,7 +18,7 @@ func GetMongoSession() (*mgo.Session, error) {
 	var mgoConn mongoConn
 	err := envconfig.Process("", &mgoConn)
 	if err != nil {
-		log.Fatal(errCodeToMessage[ErrEnvVarFail], err.Error())
+		return nil, err
 	}
 	if mgoSession == nil {
 		var err error

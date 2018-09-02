@@ -8,6 +8,10 @@ services:
       - commons.env
     depends_on:
       - mongo
+    environment:
+      MONGO_URL: mongo
+    ports:
+      - 8081:9223
     restart: on-failure
   vote-service:
     build:

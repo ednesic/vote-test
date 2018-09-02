@@ -12,6 +12,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/gorilla/mux"
 	"github.com/kelseyhightower/envconfig"
+	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -21,6 +22,8 @@ const (
 	errInvalidMgoSession = "Failed to retrieve mongo session"
 	errParseTimestamp    = "Failed to parse timestamp"
 	errConn              = "Failed connect to mongodb"
+	errRetrieveQuery     = "Failed to retrieve query"
+	errNotFound          = "Not found election"
 )
 
 type server struct {
@@ -40,7 +43,6 @@ func (s *server) run() {
 	log.Fatal(s.srv.ListenAndServe())
 }
 
-//Resolver id unico
 func (s *server) initRoutes() *mux.Router {
 	router := mux.NewRouter()
 	router.HandleFunc("/election", s.createElection).Methods("POST")
@@ -62,33 +64,33 @@ func (s *server) createElection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer session.Close()
-	c := session.DB(s.Database).C(s.Collection)
+	conn := session.DB(s.Database).C(s.Collection)
 
-	num, err := c.Find(bson.M{}).Count()
+	num, err := conn.Find(bson.M{}).Count()
 	if err != nil {
-		http.Error(w, errInvalidMgoSession, 500)
+		http.Error(w, errRetrieveQuery, 500)
 		return
 	}
 
-	tmp, err := ptypes.TimestampProto(time.Unix(0, end))
+	tmstp, err := ptypes.TimestampProto(time.Unix(end, 0))
 	if err != nil {
 		http.Error(w, errParseTimestamp, 500)
 		return
 	}
 
-	e := &pb.Election{
+	election := &pb.Election{
 		Id:      int32(num),
 		Inicio:  ptypes.TimestampNow(),
-		Termino: tmp,
+		Termino: tmstp,
 	}
 
-	if c.Insert(&e) != nil {
+	if conn.Insert(&election) != nil {
 		http.Error(w, errConn, 500)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	j, _ := json.Marshal(e)
+	j, _ := json.Marshal(election)
 	w.Write(j)
 }
 
@@ -108,11 +110,17 @@ func (s *server) getElection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer session.Close()
-	c := session.DB(s.Database).C(s.Collection)
+	conn := session.DB(s.Database).C(s.Collection)
 
-	if c.Find(bson.M{"id": id}).One(&election) != nil {
-		http.Error(w, errInvalidMgoSession, 500)
+	if err = conn.Find(bson.M{"id": id}).One(&election); err != nil {
+		if err == mgo.ErrNotFound {
+			http.Error(w, errNotFound, http.StatusNotFound)
+			return
+		}
+		http.Error(w, errRetrieveQuery, 500)
+		return
 	}
+
 	w.WriteHeader(http.StatusOK)
 	j, _ := json.Marshal(election)
 	w.Write(j)

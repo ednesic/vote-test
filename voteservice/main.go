@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -74,7 +73,7 @@ func (s *server) createVote(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&vote)
 	if err != nil {
-		http.Error(w, errCodeToMessage[ErrInvalidData], 500)
+		http.Error(w, errCodeToMessage[ErrInvalidData], http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -82,8 +81,7 @@ func (s *server) createVote(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
-		fmt.Println(errCodeToMessage[ErrFailPubVote], err)
-		w.WriteHeader(http.StatusUnprocessableEntity)
+		http.Error(w, errCodeToMessage[ErrFailPubVote], http.StatusUnprocessableEntity)
 		return
 	}
 
