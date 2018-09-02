@@ -1,7 +1,15 @@
 syntax = "proto3";
 option go_package="pb";
 
+import "google/protobuf/timestamp.proto";
+
 message Vote {
     int32  id   = 1;
     string user = 2;
+}
+
+message Election {
+    int32 id = 1;
+    google.protobuf.Timestamp inicio = 2;
+    google.protobuf.Timestamp termino = 3;
 }

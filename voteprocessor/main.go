@@ -62,5 +62,4 @@ func procVote(msg *stan.Msg) {
 	if err != nil {
 		fmt.Println(ErrFailProcVote, err)
 	}
-	fmt.Println(vote)
 }
