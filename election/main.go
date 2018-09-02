@@ -40,6 +40,7 @@ func (s *server) run() {
 	log.Fatal(s.srv.ListenAndServe())
 }
 
+//Resolver id unico
 func (s *server) initRoutes() *mux.Router {
 	router := mux.NewRouter()
 	router.HandleFunc("/election", s.createElection).Methods("POST")

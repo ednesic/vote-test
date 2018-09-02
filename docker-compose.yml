@@ -1,5 +1,14 @@
 version: '3'
 services:
+  election-service:
+    build:
+      context: ./election
+      dockerfile: ../Dockerfile
+    env_file:
+      - commons.env
+    depends_on:
+      - mongo
+    restart: on-failure
   vote-service:
     build:
       context: ./voteservice
@@ -8,6 +17,7 @@ services:
       - commons.env
     depends_on:
       - stan
+      - mongo
     ports:
       - 8080:9222
     restart: on-failure
@@ -19,6 +29,11 @@ services:
       - commons.env
     depends_on:
       - stan
+      - mongo
     restart: on-failure
   stan:
     image: nats-streaming
+    restart: on-failure
+  mongo:
+    image: mongo
+    restart: on-failure

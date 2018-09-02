@@ -51,7 +51,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	defer comp.Shutdown()
 	comp.NATS().QueueSubscribe(s.VoteChannel, s.QueueGroup, procVote, stan.DurableName(s.DurableID))
 	runtime.Goexit()
 }
@@ -62,4 +62,5 @@ func procVote(msg *stan.Msg) {
 	if err != nil {
 		fmt.Println(ErrFailProcVote, err)
 	}
+	//todo
 }

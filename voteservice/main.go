@@ -58,7 +58,7 @@ func (s *server) run() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	defer s.strmCmp.Shutdown()
 	log.Println("HTTP Sever listening on " + s.Port)
 	log.Fatal(server.ListenAndServe())
 }
