@@ -30,6 +30,7 @@ type server struct {
 	Port       string `envconfig:"PORT" default:"9223"`
 	Database   string `envconfig:"DATABASE" default:"elections"`
 	Collection string `envconfig:"COLLECTION" default:"election"`
+	MgoURL     string `envconfig:"MONGO_URL" default:"localhost:27017"`
 
 	srv *http.Server
 }
@@ -58,7 +59,7 @@ func (s *server) createElection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := db.GetMongoSession()
+	session, err := db.GetMongoSession(s.MgoURL)
 	if err != nil {
 		http.Error(w, errInvalidMgoSession, 500)
 		return
@@ -104,7 +105,7 @@ func (s *server) getElection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := db.GetMongoSession()
+	session, err := db.GetMongoSession(s.MgoURL)
 	if err != nil {
 		http.Error(w, errInvalidMgoSession, 500)
 		return

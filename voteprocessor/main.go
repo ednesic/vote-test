@@ -39,6 +39,7 @@ type specification struct {
 	Database      string `envconfig:"DATABASE" default:"elections"`
 	ElectionColl  string `envconfig:"ELECTION_COLLECTION" default:"election"`
 	VoteColl      string `envconfig:"VOTE_COLLECTION" default:"vote"`
+	MgoURL        string `envconfig:"MONGO_URL" default:"localhost:27017"`
 }
 
 var s specification
@@ -73,12 +74,13 @@ func procVote(msg *stan.Msg) {
 		fmt.Println(errFailProcVote, err)
 	}
 
-	session, err := db.GetMongoSession()
+	session, err := db.GetMongoSession(s.MgoURL)
 	if err != nil {
 		fmt.Println(errInvalidMgoSession, err)
 		return
 	}
 	defer session.Close()
+	//find election
 	c := session.DB(s.Database).C(s.ElectionColl)
 
 	if err = c.Find(bson.M{"id": vote.Id}).One(&election); err != nil {
@@ -98,7 +100,7 @@ func procVote(msg *stan.Msg) {
 		fmt.Println(errVoteOver)
 		return
 	}
-
+	//submit vote
 	cvote := session.DB(s.Database).C(s.VoteColl)
 
 	if cvote.Insert(&vote) != nil {

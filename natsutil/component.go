@@ -8,9 +8,17 @@ import (
 	"github.com/nats-io/nuid"
 )
 
+type StreamingComponent interface {
+	ConnectToNATSStreaming(clusterID string, options ...stan.Option) error
+	NATS() stan.Conn
+	ID() string
+	Name() string
+	Shutdown() error
+}
+
 // StreamingComponent is contains reusable logic related to handling
 // of the connection to NATS Streaming in the system.
-type StreamingComponent struct {
+type streamingComponent struct {
 	// cmu is the lock from the component.
 	cmu sync.Mutex
 
@@ -25,16 +33,16 @@ type StreamingComponent struct {
 }
 
 // NewStreamingComponent creates a StreamingComponent
-func NewStreamingComponent(kind string) *StreamingComponent {
+func NewStreamingComponent(kind string) StreamingComponent {
 	id := nuid.Next()
-	return &StreamingComponent{
+	return &streamingComponent{
 		id:   id,
 		kind: kind,
 	}
 }
 
 // ConnectToNATSStreaming connects to NATS Streaming
-func (c *StreamingComponent) ConnectToNATSStreaming(clusterID string, options ...stan.Option) error {
+func (c *streamingComponent) ConnectToNATSStreaming(clusterID string, options ...stan.Option) error {
 	c.cmu.Lock()
 	defer c.cmu.Unlock()
 
@@ -48,28 +56,28 @@ func (c *StreamingComponent) ConnectToNATSStreaming(clusterID string, options ..
 }
 
 // NATS returns the current NATS connection.
-func (c *StreamingComponent) NATS() stan.Conn {
+func (c *streamingComponent) NATS() stan.Conn {
 	c.cmu.Lock()
 	defer c.cmu.Unlock()
 	return c.nc
 }
 
 // ID returns the ID from the component.
-func (c *StreamingComponent) ID() string {
+func (c *streamingComponent) ID() string {
 	c.cmu.Lock()
 	defer c.cmu.Unlock()
 	return c.id
 }
 
 // Name is the label used to identify the NATS connection.
-func (c *StreamingComponent) Name() string {
+func (c *streamingComponent) Name() string {
 	c.cmu.Lock()
 	defer c.cmu.Unlock()
 	return fmt.Sprintf("%s:%s", c.kind, c.id)
 }
 
 // Shutdown makes the component go away.
-func (c *StreamingComponent) Shutdown() error {
+func (c *streamingComponent) Shutdown() error {
 	c.NATS().Close()
 	return nil
 }

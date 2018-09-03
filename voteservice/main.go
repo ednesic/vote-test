@@ -36,7 +36,7 @@ type server struct {
 	ClientID      string `envconfig:"CLIENT_ID" default:"vote-service"`
 
 	srv     *http.Server
-	strmCmp *natsutil.StreamingComponent
+	strmCmp natsutil.StreamingComponent
 }
 
 func (s *server) run() {
@@ -90,7 +90,7 @@ func (s *server) createVote(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func (s *server) publishEvent(component *natsutil.StreamingComponent, vote *pb.Vote) error {
+func (s *server) publishEvent(component natsutil.StreamingComponent, vote *pb.Vote) error {
 	sc := component.NATS()
 	voteJSON, err := proto.Marshal(vote)
 	if err != nil {
