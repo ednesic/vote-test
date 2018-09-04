@@ -31,7 +31,7 @@ func (m *Vote) Reset()         { *m = Vote{} }
 func (m *Vote) String() string { return proto.CompactTextString(m) }
 func (*Vote) ProtoMessage()    {}
 func (*Vote) Descriptor() ([]byte, []int) {
-	return fileDescriptor_vote_20dd5a3c0b77f4a2, []int{0}
+	return fileDescriptor_vote_e4049580c9d891c0, []int{0}
 }
 func (m *Vote) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Vote.Unmarshal(m, b)
@@ -78,7 +78,7 @@ func (m *Election) Reset()         { *m = Election{} }
 func (m *Election) String() string { return proto.CompactTextString(m) }
 func (*Election) ProtoMessage()    {}
 func (*Election) Descriptor() ([]byte, []int) {
-	return fileDescriptor_vote_20dd5a3c0b77f4a2, []int{1}
+	return fileDescriptor_vote_e4049580c9d891c0, []int{1}
 }
 func (m *Election) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Election.Unmarshal(m, b)
@@ -124,9 +124,9 @@ func init() {
 	proto.RegisterType((*Election)(nil), "Election")
 }
 
-func init() { proto.RegisterFile("vote.proto", fileDescriptor_vote_20dd5a3c0b77f4a2) }
+func init() { proto.RegisterFile("vote.proto", fileDescriptor_vote_e4049580c9d891c0) }
 
-var fileDescriptor_vote_20dd5a3c0b77f4a2 = []byte{
+var fileDescriptor_vote_e4049580c9d891c0 = []byte{
 	// 173 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x2a, 0xcb, 0x2f, 0x49,
 	0xd5, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x97, 0x92, 0x4f, 0xcf, 0xcf, 0x4f, 0xcf, 0x49, 0xd5, 0x07,

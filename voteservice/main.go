@@ -14,18 +14,13 @@ import (
 )
 
 const (
-	ErrEnvVarFail int = iota + 1
-	ErrConnLost
-	ErrFailPubVote
-	ErrInvalidData
+	ErrEnvVarFail  = "Failed to get environment variables:"
+	ErrConnLost    = "Connection lost:"
+	ErrFailPubVote = "Failed to publish vote"
+	ErrInvalidData = "Invalid Vote Data"
+	ErrInvalidId   = "Invalid Id"
+	ErrInvalidUser = "Invalid User"
 )
-
-var errCodeToMessage = map[int]string{
-	ErrEnvVarFail:  "Failed to get environment variables:",
-	ErrConnLost:    "Connection lost:",
-	ErrFailPubVote: "Failed to publish vote",
-	ErrInvalidData: "Invalid Vote Data",
-}
 
 // Variaveis de ambiente
 type server struct {
@@ -51,7 +46,7 @@ func (s *server) run() {
 		stan.NatsURL(s.NatsServer),
 		stan.Pings(10, 5),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, reason error) {
-			log.Fatal(errCodeToMessage[ErrConnLost], reason)
+			log.Fatal(ErrConnLost, reason)
 		}),
 	)
 	if err != nil {
@@ -70,18 +65,28 @@ func (s *server) initRoutes() *mux.Router {
 
 func (s *server) createVote(w http.ResponseWriter, r *http.Request) {
 	var vote pb.Vote
+	w.Header().Set("Content-Type", "application/json")
 
 	err := json.NewDecoder(r.Body).Decode(&vote)
 	if err != nil {
-		http.Error(w, errCodeToMessage[ErrInvalidData], http.StatusUnprocessableEntity)
+		http.Error(w, ErrInvalidData, http.StatusBadRequest)
+		return
+	}
+
+	if vote.GetId() <= 0 {
+		http.Error(w, ErrInvalidId, http.StatusBadRequest)
+		return
+	}
+
+	if vote.GetUser() == "" {
+		http.Error(w, ErrInvalidUser, http.StatusBadRequest)
 		return
 	}
 
 	err = s.publishEvent(s.strmCmp, &vote)
 
-	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
-		http.Error(w, errCodeToMessage[ErrFailPubVote], http.StatusUnprocessableEntity)
+		http.Error(w, ErrFailPubVote, http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -103,7 +108,7 @@ func main() {
 	var s server
 	err := envconfig.Process("", &s)
 	if err != nil {
-		log.Fatal(errCodeToMessage[ErrEnvVarFail], err.Error())
+		log.Fatal(ErrEnvVarFail, err.Error())
 	}
 	s.run()
 }
