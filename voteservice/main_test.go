@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/ednesic/vote-test/natsutil"
@@ -87,6 +87,7 @@ func Test_server_publishEvent(t *testing.T) {
 		{"Negative id on vote", fields{}, args{strmCmpMock{}, &pb.Vote{User: "1", Id: -1}}, false},
 		{"High value on vote", fields{}, args{strmCmpMock{}, &pb.Vote{User: "1", Id: 1000000000}}, false},
 		{"Big string on vote", fields{}, args{strmCmpMock{}, &pb.Vote{User: "sdgnasodgsdgsino", Id: 1}}, false},
+		{"Nil vote must fail", fields{}, args{strmCmpMock{}, nil}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -116,18 +117,16 @@ func Test_server_createVote(t *testing.T) {
 		srv           *http.Server
 		strmCmp       natsutil.StreamingComponent
 	}
-	type args struct {
-		w http.ResponseWriter
-		r *http.Request
-	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		body   io.Reader
-		err    string
+		name         string
+		fields       fields
+		body         string
+		statusCode   int
+		responseBody string
 	}{
-		// TODO: Add test cases.
+		{"Creation successful", fields{strmCmp: strmCmpMock{}}, `{"id":12,"user":"abc"}`, 201, `{"id":12,"user":"abc"}`},
+		{"Missing user", fields{strmCmp: strmCmpMock{}}, `{"id":12}`, 400, ErrInvalidUser},
+		{"Missing id", fields{strmCmp: strmCmpMock{}}, `{"user":"abc"}`, 400, ErrInvalidId},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -140,7 +139,7 @@ func Test_server_createVote(t *testing.T) {
 				srv:           tt.fields.srv,
 				strmCmp:       tt.fields.strmCmp,
 			}
-			req, err := http.NewRequest("POST", "localhost:9222/vote", tt.body)
+			req, err := http.NewRequest("POST", "localhost:9222/vote", strings.NewReader(tt.body))
 			if err != nil {
 				t.Fatalf("could not create request: %v", err)
 			}
@@ -148,21 +147,23 @@ func Test_server_createVote(t *testing.T) {
 			s.createVote(rec, req)
 
 			res := rec.Result()
+
+			if res.StatusCode != tt.statusCode {
+				t.Fatalf("Did not get the same response code: %v", err)
+			}
+
 			defer res.Body.Close()
 
 			b, err := ioutil.ReadAll(res.Body)
-			//do tests
 			if err != nil {
-				t.Fatalf("could not read response: %v", err)
+				t.Fatalf("could not read response body: %v", err)
 			}
 
-			if tt.err != "" {
-				t.Fatalf("todo: %v", err)
+			fmt.Println(tt.responseBody)
+			fmt.Println(string(b))
+			if tt.responseBody != string(b) {
+				t.Fatalf("POST did not return the same object passed on the request body ")
 			}
-			fmt.Println(b)
-			fmt.Println(s)
-			fmt.Println(req)
-			fmt.Println(err)
 		})
 	}
 }
