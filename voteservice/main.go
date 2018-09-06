@@ -14,12 +14,12 @@ import (
 )
 
 const (
-	ErrEnvVarFail  = "Failed to get environment variables:"
-	ErrConnLost    = "Connection lost:"
-	ErrFailPubVote = "Failed to publish vote"
-	ErrInvalidData = "Invalid Vote Data"
-	ErrInvalidId   = "Invalid Id"
-	ErrInvalidUser = "Invalid User"
+	ErrEnvVarFail  = `Failed to get environment variables:`
+	ErrConnLost    = `Connection lost:`
+	ErrFailPubVote = `Failed to publish vote`
+	ErrInvalidData = `Invalid Vote Data`
+	ErrInvalidId   = `Invalid Id`
+	ErrInvalidUser = `Invalid User`
 )
 
 // Variaveis de ambiente

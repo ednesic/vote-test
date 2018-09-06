@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -124,9 +122,14 @@ func Test_server_createVote(t *testing.T) {
 		statusCode   int
 		responseBody string
 	}{
-		{"Creation successful", fields{strmCmp: strmCmpMock{}}, `{"id":12,"user":"abc"}`, 201, `{"id":12,"user":"abc"}`},
-		{"Missing user", fields{strmCmp: strmCmpMock{}}, `{"id":12}`, 400, ErrInvalidUser},
-		{"Missing id", fields{strmCmp: strmCmpMock{}}, `{"user":"abc"}`, 400, ErrInvalidId},
+		{"Creation successful", fields{strmCmp: strmCmpMock{}}, `{"id":12,"user":"abc"}`, http.StatusCreated, `{"id":12,"user":"abc"}`},
+		{"Wrong user type", fields{strmCmp: strmCmpMock{}}, `{"id":"12"}`, http.StatusBadRequest, ErrInvalidData},
+		{"Wrong id type", fields{strmCmp: strmCmpMock{}}, `{"user":12}`, http.StatusBadRequest, ErrInvalidData},
+		{"Missing user", fields{strmCmp: strmCmpMock{}}, `{"id":12}`, http.StatusBadRequest, ErrInvalidUser},
+		{"Missing id", fields{strmCmp: strmCmpMock{}}, `{"user":"abc"}`, http.StatusBadRequest, ErrInvalidId},
+		{"Missing all", fields{strmCmp: strmCmpMock{}}, `{}`, http.StatusBadRequest, ErrInvalidId},
+		{"Wrong parameters", fields{strmCmp: strmCmpMock{}}, `{"id":12,"user":"abc","Home: 5"}`, http.StatusBadRequest, ErrInvalidData},
+		// {"Could not process message", fields{strmCmp: strmCmpMock{}}, `{"id":12,"user":"abc"}`, http.StatusUnprocessableEntity, ErrInvalidData}, //mock public to fail
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -154,14 +157,11 @@ func Test_server_createVote(t *testing.T) {
 
 			defer res.Body.Close()
 
-			b, err := ioutil.ReadAll(res.Body)
 			if err != nil {
 				t.Fatalf("could not read response body: %v", err)
 			}
 
-			fmt.Println(tt.responseBody)
-			fmt.Println(string(b))
-			if tt.responseBody != string(b) {
+			if tt.responseBody != strings.TrimSuffix(rec.Body.String(), "\n") {
 				t.Fatalf("POST did not return the same object passed on the request body ")
 			}
 		})
