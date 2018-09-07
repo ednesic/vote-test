@@ -1,21 +1,26 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/ednesic/vote-test/natsutil"
 	"github.com/ednesic/vote-test/pb"
 	nats "github.com/nats-io/go-nats"
 	"github.com/nats-io/go-nats-streaming"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
-type stanConnMock struct{}
+type stanConnMock struct {
+	mock.Mock
+}
 
 func (s stanConnMock) Publish(subject string, data []byte) error {
-	return nil
+	args := s.Called(subject, data)
+	return args.Error(0)
 }
 
 func (s stanConnMock) PublishAsync(subject string, data []byte, ah stan.AckHandler) (string, error) {
@@ -36,69 +41,30 @@ func (s stanConnMock) NatsConn() *nats.Conn {
 	return nil
 }
 
-type strmCmpMock struct{}
-
-func (s strmCmpMock) ConnectToNATSStreaming(clusterID string, options ...stan.Option) error {
-	return nil
-}
-
-func (s strmCmpMock) NATS() stan.Conn {
-	return stanConnMock{}
-}
-
-func (s strmCmpMock) ID() string {
-	return ""
-}
-
-func (s strmCmpMock) Name() string {
-	return ""
-}
-
-func (s strmCmpMock) Shutdown() error {
-	return nil
-}
-
 func Test_server_publishEvent(t *testing.T) {
-	type fields struct {
-		Port          string
-		NatsClusterID string
-		VoteChannel   string
-		NatsServer    string
-		ClientID      string
-		srv           *http.Server
-		strmCmp       natsutil.StreamingComponent
-	}
+	stanMock := new(stanConnMock)
+	stanMock.On("Publish", mock.Anything, mock.Anything).Return(nil)
 	type args struct {
-		component natsutil.StreamingComponent
-		vote      *pb.Vote
+		vote *pb.Vote
 	}
 	tests := []struct {
 		name    string
-		fields  fields
 		args    args
 		wantErr bool
 	}{
-		{"Empty vote", fields{}, args{strmCmpMock{}, &pb.Vote{}}, false},
-		{"Empty user on vote", fields{}, args{strmCmpMock{}, &pb.Vote{User: "", Id: 12}}, false},
-		{"Empty id on vote", fields{}, args{strmCmpMock{}, &pb.Vote{User: "1", Id: 0}}, false},
-		{"Normal vote", fields{}, args{strmCmpMock{}, &pb.Vote{User: "1", Id: 90}}, false},
-		{"Negative id on vote", fields{}, args{strmCmpMock{}, &pb.Vote{User: "1", Id: -1}}, false},
-		{"High value on vote", fields{}, args{strmCmpMock{}, &pb.Vote{User: "1", Id: 1000000000}}, false},
-		{"Big string on vote", fields{}, args{strmCmpMock{}, &pb.Vote{User: "sdgnasodgsdgsino", Id: 1}}, false},
-		{"Nil vote must fail", fields{}, args{strmCmpMock{}, nil}, true},
+		{"Empty vote", args{&pb.Vote{}}, false},
+		{"Empty user on vote", args{&pb.Vote{User: "", Id: 12}}, false},
+		{"Empty id on vote", args{&pb.Vote{User: "1", Id: 0}}, false},
+		{"Normal vote", args{&pb.Vote{User: "1", Id: 90}}, false},
+		{"Negative id on vote", args{&pb.Vote{User: "1", Id: -1}}, false},
+		{"High value on vote", args{&pb.Vote{User: "1", Id: 1000000000}}, false},
+		{"Big string on vote", args{&pb.Vote{User: "sdgnasodgsdgsino", Id: 1}}, false},
+		{"Nil vote must fail", args{nil}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &server{
-				Port:          tt.fields.Port,
-				NatsClusterID: tt.fields.NatsClusterID,
-				VoteChannel:   tt.fields.VoteChannel,
-				NatsServer:    tt.fields.NatsServer,
-				ClientID:      tt.fields.ClientID,
-				srv:           tt.fields.srv,
-				strmCmp:       tt.fields.strmCmp,
-			}
-			if err := s.publishEvent(tt.args.component, tt.args.vote); (err != nil) != tt.wantErr {
+			s := &server{stanConn: stanMock}
+			if err := s.publishEvent(tt.args.vote); (err != nil) != tt.wantErr {
 				t.Errorf("server.publishEvent() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -106,64 +72,54 @@ func Test_server_publishEvent(t *testing.T) {
 }
 
 func Test_server_createVote(t *testing.T) {
-	type fields struct {
-		Port          string
-		NatsClusterID string
-		VoteChannel   string
-		NatsServer    string
-		ClientID      string
-		srv           *http.Server
-		strmCmp       natsutil.StreamingComponent
-	}
+	stanMock := new(stanConnMock)
 	tests := []struct {
 		name         string
-		fields       fields
 		body         string
 		statusCode   int
 		responseBody string
+		pubRes       error
 	}{
-		{"Creation successful", fields{strmCmp: strmCmpMock{}}, `{"id":12,"user":"abc"}`, http.StatusCreated, `{"id":12,"user":"abc"}`},
-		{"Wrong user type", fields{strmCmp: strmCmpMock{}}, `{"id":"12"}`, http.StatusBadRequest, ErrInvalidData},
-		{"Wrong id type", fields{strmCmp: strmCmpMock{}}, `{"user":12}`, http.StatusBadRequest, ErrInvalidData},
-		{"Missing user", fields{strmCmp: strmCmpMock{}}, `{"id":12}`, http.StatusBadRequest, ErrInvalidUser},
-		{"Missing id", fields{strmCmp: strmCmpMock{}}, `{"user":"abc"}`, http.StatusBadRequest, ErrInvalidId},
-		{"Missing all", fields{strmCmp: strmCmpMock{}}, `{}`, http.StatusBadRequest, ErrInvalidId},
-		{"Wrong parameters", fields{strmCmp: strmCmpMock{}}, `{"id":12,"user":"abc","Home: 5"}`, http.StatusBadRequest, ErrInvalidData},
-		// {"Could not process message", fields{strmCmp: strmCmpMock{}}, `{"id":12,"user":"abc"}`, http.StatusUnprocessableEntity, ErrInvalidData}, //mock public to fail
+		{"Could not process message", `{"id":12,"user":"abc"}`, http.StatusUnprocessableEntity, errFailPubVote, errors.New("err")},
+		{"Creation successful", `{"id":12,"user":"abc"}`, http.StatusCreated, `{"id":12,"user":"abc"}`, nil},
+		{"Wrong user type", `{"id":"12"}`, http.StatusBadRequest, errInvalidData, nil},
+		{"Wrong id type", `{"user":12}`, http.StatusBadRequest, errInvalidData, nil},
+		{"Missing user", `{"id":12}`, http.StatusBadRequest, errInvalidUser, nil},
+		{"Missing id", `{"user":"abc"}`, http.StatusBadRequest, errInvalidID, nil},
+		{"Missing all", `{}`, http.StatusBadRequest, errInvalidID, nil},
+		{"Wrong parameters", `{"id":12,"user":"abc","Home: 5"}`, http.StatusBadRequest, errInvalidData, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			stanMock.On("Publish", mock.Anything, mock.Anything).Return(tt.pubRes).Once()
 			s := &server{
-				Port:          tt.fields.Port,
-				NatsClusterID: tt.fields.NatsClusterID,
-				VoteChannel:   tt.fields.VoteChannel,
-				NatsServer:    tt.fields.NatsServer,
-				ClientID:      tt.fields.ClientID,
-				srv:           tt.fields.srv,
-				strmCmp:       tt.fields.strmCmp,
+				stanConn: stanMock,
 			}
 			req, err := http.NewRequest("POST", "localhost:9222/vote", strings.NewReader(tt.body))
-			if err != nil {
-				t.Fatalf("could not create request: %v", err)
-			}
+			assert.Nil(t, err, "could not create request")
+
 			rec := httptest.NewRecorder()
 			s.createVote(rec, req)
-
 			res := rec.Result()
-
-			if res.StatusCode != tt.statusCode {
-				t.Fatalf("Did not get the same response code: %v", err)
-			}
-
 			defer res.Body.Close()
 
-			if err != nil {
-				t.Fatalf("could not read response body: %v", err)
-			}
+			assert.Equal(t, tt.statusCode, res.StatusCode, "Did not get the same response code")
+			assert.Nil(t, err, "could not read response body")
+			assert.Equal(t, tt.responseBody, strings.TrimSuffix(rec.Body.String(), "\n"))
+		})
+	}
+}
 
-			if tt.responseBody != strings.TrimSuffix(rec.Body.String(), "\n") {
-				t.Fatalf("POST did not return the same object passed on the request body ")
-			}
+func Test_server_initRoutes(t *testing.T) {
+	tests := []struct {
+		name string
+	}{
+		{"Return non nil object"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &server{}
+			assert.NotNil(t, s.initRoutes())
 		})
 	}
 }
