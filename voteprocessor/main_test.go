@@ -2,7 +2,7 @@ package main
 
 import (
 	"errors"
-	"fmt"
+	"io/ioutil"
 	"log"
 	"testing"
 
@@ -12,8 +12,12 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/nats-io/go-nats-streaming"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"gopkg.in/mgo.v2/dbtest"
 )
+
+var Server dbtest.DBServer
 
 type DataAccessLayerMock struct {
 	mock.Mock
@@ -75,12 +79,11 @@ func Test_getElectionEnd(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mgoDal.On("FindOne", mock.Anything, mock.Anything, mock.Anything).Return(tt.queryRet).Once()
 
-			got, err := getElectionEnd(mgoDal, "test", 1)
+			_, err := getElectionEnd(mgoDal, "test", 1)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getElectionEnd() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			fmt.Println(got)
 		})
 	}
 }
@@ -137,6 +140,124 @@ func Test_vote(t *testing.T) {
 			mgoDal.On("Insert", mock.Anything, mock.Anything, mock.Anything).Return(tt.queryRet).Once()
 			if err := vote(tt.args.dal, tt.args.coll, tt.args.vote); (err != nil) != tt.wantErr {
 				t.Errorf("vote() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+/****************************************/
+/**   Test must have mongod installed  **/
+/****************************************/
+
+func Example_spec_procVote_full() {
+	var s spec
+	s.Database = "test"
+	s.ElectionColl = "test1"
+	s.VoteColl = "test2"
+
+	tafter := ptypes.TimestampNow()
+
+	tafter.Seconds = tafter.GetSeconds() + 1000
+
+	tempDir, _ := ioutil.TempDir("", "testing")
+	Server.SetPath(tempDir)
+	mockSession := Server.Session()
+
+	mockSession.DB(s.Database).C(s.ElectionColl).Insert(&pb.Election{Id: 1, Inicio: tafter, Termino: tafter})
+
+	mgoDal, err := db.NewMongoDAL(mockSession.LiveServers()[0], s.Database)
+	if err != nil {
+		log.Fatal("Failed to create mongo mock session")
+	}
+	s.mgoDal = mgoDal
+
+	msg := &stan.Msg{}
+	m, _ := proto.Marshal(&pb.Vote{Id: 1, User: "test"})
+	msg.Data = m
+	err = msg.Unmarshal(m)
+	if err != nil {
+		log.Fatal("Failed to unmarshal message")
+	}
+	s.procVote(msg)
+	// Output:
+
+	mockSession.Close()
+}
+
+func Example_spec_procVote_election_ended() {
+	var s spec
+	s.Database = "test"
+	s.ElectionColl = "test1"
+	s.VoteColl = "test2"
+
+	tbefore := ptypes.TimestampNow()
+
+	tbefore.Seconds = tbefore.GetSeconds() - 10000
+
+	tempDir, _ := ioutil.TempDir("", "testing")
+	Server.SetPath(tempDir)
+	mockSession := Server.Session()
+
+	mockSession.DB(s.Database).C(s.ElectionColl).Insert(&pb.Election{Id: 2, Inicio: tbefore, Termino: tbefore})
+
+	mgoDal, err := db.NewMongoDAL(mockSession.LiveServers()[0], s.Database)
+	if err != nil {
+		log.Fatal("Failed to create mongo mock session")
+	}
+	s.mgoDal = mgoDal
+
+	msg := &stan.Msg{}
+	m, _ := proto.Marshal(&pb.Vote{Id: 2, User: "test"})
+	msg.Data = m
+	err = msg.Unmarshal(m)
+	if err != nil {
+		log.Fatal("Failed to unmarshal message")
+	}
+	s.procVote(msg)
+	// Output: Election has ended
+
+	mockSession.Close()
+}
+
+func Test_getElectionEnd_w_mongod_mock(t *testing.T) {
+	dbName := "test"
+	collName := "test1"
+	tbefore := ptypes.TimestampNow()
+	tbefore.Seconds = tbefore.GetSeconds() - 10000
+
+	tempDir, _ := ioutil.TempDir("", "testing")
+	Server.SetPath(tempDir)
+	mockSession := Server.Session()
+
+	mockSession.DB(dbName).C(collName).Insert(&pb.Election{Id: 3, Inicio: tbefore, Termino: tbefore})
+
+	mgoDal, err := db.NewMongoDAL(mockSession.LiveServers()[0], dbName)
+	assert.Nil(t, err, "Failed to create mongo mock session")
+
+	type args struct {
+		coll string
+		id   int32
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		want    *timestamp.Timestamp
+	}{
+		{"Get election", args{coll: collName, id: 3}, false, tbefore},
+		{"Error on Find", args{coll: collName, id: 4}, true, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			got, err := getElectionEnd(mgoDal, tt.args.coll, tt.args.id)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getElectionEnd() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				assert.Equal(t, tt.want.Seconds, got.Seconds, "Did not get the same timestamp seconds")
+				assert.Equal(t, tt.want.Nanos, got.Nanos, "Did not get the same timestamp nanoseconds")
 			}
 		})
 	}
