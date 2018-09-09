@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/ednesic/vote-test/db"
 	"github.com/ednesic/vote-test/pb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
@@ -13,19 +14,16 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/nats-io/go-nats-streaming"
 	"github.com/nats-io/nuid"
-	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
 const (
-	errEnvVarFail        = "Failed to get environment variables:"
-	errConnLost          = "Connection lost:"
-	errFailProcVote      = "Failed to process vote"
-	errInvalidMgoSession = "Failed to retrieve mongo session"
-	errRetrieveQuery     = "Failed to retrieve query"
-	errParseTimestamp    = "Failed to parse timestamp"
-	errConn              = "Failed connect to mongodb"
-	errVoteOver          = "Passou o tempo da votacao"
+	errEnvVarFail       = "Failed to get environment variables:"
+	errConnLost         = "Connection lost:"
+	errFailProcVote     = "Failed to process vote"
+	errParseTimestamp   = "Failed to parse timestamp"
+	errElectionNotFound = "Could not get election:"
+	errElectionEnded    = "Election has ended"
 )
 
 type spec struct {
@@ -39,7 +37,7 @@ type spec struct {
 	ElectionColl  string `envconfig:"ELECTION_COLLECTION" default:"election"`
 	VoteColl      string `envconfig:"VOTE_COLLECTION" default:"vote"`
 	Database      string `envconfig:"DATABASE" default:"elections"`
-	mgoSession    *mgo.Session
+	mgoDal        db.DataAccessLayer
 }
 
 func main() {
@@ -63,7 +61,7 @@ func main() {
 
 	stanConn.QueueSubscribe(s.VoteChannel, s.QueueGroup, s.procVote, stan.DurableName(s.DurableID))
 
-	s.mgoSession, err = mgo.Dial(s.MgoURL)
+	s.mgoDal, err = db.NewMongoDAL(s.MgoURL, s.Database)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -77,30 +75,28 @@ func (s *spec) procVote(msg *stan.Msg) {
 	err := proto.Unmarshal(msg.Data, &v)
 	if err != nil {
 		fmt.Println(errFailProcVote, err)
+		return
 	}
 
-	session := s.mgoSession.Clone()
-	defer session.Close()
-
-	end, err := getElectionEnd(session, s.Database, s.ElectionColl, v.Id)
+	end, err := getElectionEnd(s.mgoDal, s.ElectionColl, v.Id)
 	if err != nil {
-		fmt.Println("Could not get election: ", err)
+		fmt.Println(errElectionNotFound, err)
 		return
 	}
 
 	if isElectionOver(end) {
-		fmt.Println("Election has ended")
+		fmt.Println(errElectionEnded)
 		return
 	}
 
-	if vote(session, s.Database, s.VoteColl, &v) != nil {
+	if err = vote(s.mgoDal, s.VoteColl, &v); err != nil {
 		fmt.Println(errFailProcVote, err)
 	}
 }
 
-func getElectionEnd(s *mgo.Session, db string, coll string, id int32) (*timestamp.Timestamp, error) {
+func getElectionEnd(dal db.DataAccessLayer, coll string, id int32) (*timestamp.Timestamp, error) {
 	var election pb.Election
-	if err := s.DB(db).C(coll).Find(bson.M{"id": id}).One(&election); err != nil {
+	if err := dal.FindOne(coll, bson.M{"id": id}, &election); err != nil {
 		return nil, err
 	}
 	return election.Termino, nil
@@ -110,11 +106,11 @@ func isElectionOver(end *timestamp.Timestamp) bool {
 	t, err := ptypes.Timestamp(end)
 	if err != nil {
 		fmt.Println(errParseTimestamp, err)
-		return false
+		return true
 	}
-	return time.Now().Before(t)
+	return time.Now().After(t)
 }
 
-func vote(s *mgo.Session, db string, coll string, vote *pb.Vote) error {
-	return s.DB(db).C(coll).Insert(&vote)
+func vote(dal db.DataAccessLayer, coll string, vote *pb.Vote) error {
+	return dal.Insert(coll, &vote)
 }
