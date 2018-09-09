@@ -33,6 +33,21 @@ func (m *DataAccessLayerMock) FindOne(collName string, query interface{}, doc in
 	return args.Error(0)
 }
 
+func (m *DataAccessLayerMock) Update(collName string, selector interface{}, update interface{}) error {
+	args := m.Called(collName, selector, update)
+	return args.Error(0)
+}
+
+func (m *DataAccessLayerMock) Upsert(collName string, selector interface{}, update interface{}) error {
+	args := m.Called(collName, selector, update)
+	return args.Error(0)
+}
+
+func (m *DataAccessLayerMock) Remove(collName string, selector interface{}) error {
+	args := m.Called(collName, selector)
+	return args.Error(0)
+}
+
 func Example_procVote_election_not_found() {
 	var s spec
 	mgoDal := &DataAccessLayerMock{}

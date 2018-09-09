@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/ednesic/vote-test/db"
 	"github.com/ednesic/vote-test/pb"
@@ -17,13 +16,15 @@ import (
 )
 
 const (
-	errEnvVarFail        = "Failed to get environment variables:"
-	errInvalidData       = "Invalid Vote Data"
-	errInvalidMgoSession = "Failed to retrieve mongo session"
-	errParseTimestamp    = "Failed to parse timestamp"
-	errConn              = "Failed connect to mongodb"
-	errRetrieveQuery     = "Failed to retrieve query"
-	errNotFound          = "Not found election"
+	errEnvVarFail          = "Failed to get environment variables:"
+	errInvalidID           = "Invalid Id"
+	errInvalidElectionData = "Invalid election Data"
+	errInvalidVoteData     = "Invalid Vote Data"
+	errInvalidMgoSession   = "Failed to retrieve mongo session"
+	errParseTimestamp      = "Failed to parse timestamp"
+	errConn                = "Failed connect to mongodb"
+	errRetrieveQuery       = "Failed to retrieve query"
+	errNotFound            = "Not found election"
 )
 
 type server struct {
@@ -32,61 +33,48 @@ type server struct {
 	Collection string `envconfig:"COLLECTION" default:"election"`
 	MgoURL     string `envconfig:"MONGO_URL" default:"localhost:27017"`
 
-	srv *http.Server
+	mgoDal db.DataAccessLayer
+	srv    *http.Server
 }
 
 func (s *server) run() {
+	var err error
 	s.srv = &http.Server{
 		Addr:    ":" + s.Port,
 		Handler: s.initRoutes(),
 	}
+
+	s.mgoDal, err = db.NewMongoDAL(s.MgoURL, s.Database)
+	if err != nil {
+		log.Fatal(errConn, err)
+	}
+
 	log.Println("HTTP Sever listening on " + s.Port)
 	log.Fatal(s.srv.ListenAndServe())
 }
 
 func (s *server) initRoutes() *mux.Router {
 	router := mux.NewRouter()
-	router.HandleFunc("/election", s.createElection).Methods("POST")
+	router.HandleFunc("/election", s.createElection).Methods("PUT")
 	router.HandleFunc("/election/{id}", s.getElection).Methods("GET")
+	router.HandleFunc("/election/{id}", s.getElection).Methods("DELETE")
 	return router
 }
 
 func (s *server) createElection(w http.ResponseWriter, r *http.Request) {
-	var end int64
-
-	if json.NewDecoder(r.Body).Decode(&end) != nil {
-		http.Error(w, errInvalidData, 500)
+	var election pb.Election
+	if json.NewDecoder(r.Body).Decode(&election) != nil {
+		http.Error(w, errInvalidElectionData, http.StatusBadRequest)
 		return
 	}
 
-	session, err := db.GetMongoSession(s.MgoURL)
-	if err != nil {
-		http.Error(w, errInvalidMgoSession, 500)
-		return
-	}
-	defer session.Close()
-	conn := session.DB(s.Database).C(s.Collection)
-
-	num, err := conn.Find(bson.M{}).Count()
-	if err != nil {
-		http.Error(w, errRetrieveQuery, 500)
-		return
+	if election.Id == 0 {
+		http.Error(w, errInvalidElectionData, http.StatusBadRequest)
 	}
 
-	tmstp, err := ptypes.TimestampProto(time.Unix(end, 0))
-	if err != nil {
-		http.Error(w, errParseTimestamp, 500)
-		return
-	}
-
-	election := &pb.Election{
-		Id:      int32(num),
-		Inicio:  ptypes.TimestampNow(),
-		Termino: tmstp,
-	}
-
-	if conn.Insert(&election) != nil {
-		http.Error(w, errConn, 500)
+	election.Inicio = ptypes.TimestampNow()
+	if s.mgoDal.Upsert(s.Collection, bson.M{"id": election.Id}, &election) != nil {
+		http.Error(w, "Failed to insert/update election", 500)
 		return
 	}
 
@@ -99,21 +87,12 @@ func (s *server) getElection(w http.ResponseWriter, r *http.Request) {
 	var election pb.Election
 	vars := mux.Vars(r)
 	id, err := strconv.ParseInt(vars["id"], 10, 32)
-
 	if err != nil {
-		http.Error(w, errInvalidData, 500)
+		http.Error(w, errInvalidID, http.StatusBadRequest)
 		return
 	}
 
-	session, err := db.GetMongoSession(s.MgoURL)
-	if err != nil {
-		http.Error(w, errInvalidMgoSession, 500)
-		return
-	}
-	defer session.Close()
-	conn := session.DB(s.Database).C(s.Collection)
-
-	if err = conn.Find(bson.M{"id": id}).One(&election); err != nil {
+	if err := s.mgoDal.FindOne(s.Collection, bson.M{"id": id}, &election); err != nil {
 		if err == mgo.ErrNotFound {
 			http.Error(w, errNotFound, http.StatusNotFound)
 			return
@@ -125,6 +104,22 @@ func (s *server) getElection(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	j, _ := json.Marshal(election)
 	w.Write(j)
+}
+
+func (s *server) deleteElection(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 32)
+	if err != nil {
+		http.Error(w, errInvalidID, http.StatusBadRequest)
+		return
+	}
+
+	if err := s.mgoDal.Remove(s.Collection, bson.M{"id": id}); err != nil {
+		http.Error(w, errRetrieveQuery, 500)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func main() {
