@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"log"
+	"os/exec"
 	"testing"
 
 	"github.com/ednesic/vote-test/db"
@@ -150,6 +151,12 @@ func Test_vote(t *testing.T) {
 /****************************************/
 
 func Example_spec_procVote_full() {
+	cmd := exec.Command("mongod", "-version")
+	if cmd.Run() != nil {
+		log.Printf("Mongod is not installed.")
+		return
+	}
+
 	var s spec
 	s.Database = "test"
 	s.ElectionColl = "test1"
@@ -185,6 +192,14 @@ func Example_spec_procVote_full() {
 }
 
 func Example_spec_procVote_election_ended() {
+	cmd := exec.Command("mongod", "-version")
+	err := cmd.Run()
+
+	if err != nil {
+		log.Printf("Mongod is not installed.")
+		return
+	}
+
 	var s spec
 	s.Database = "test"
 	s.ElectionColl = "test1"
@@ -220,6 +235,14 @@ func Example_spec_procVote_election_ended() {
 }
 
 func Test_getElectionEnd_w_mongod_mock(t *testing.T) {
+	cmd := exec.Command("mongod", "-version")
+	err := cmd.Run()
+
+	if err != nil {
+		t.Skipf("Mongod is not installed. Skipping Example_spec_procVote_full test")
+		return
+	}
+
 	dbName := "test"
 	collName := "test1"
 	tbefore := ptypes.TimestampNow()
