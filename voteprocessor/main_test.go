@@ -161,9 +161,9 @@ func Test_vote(t *testing.T) {
 	}
 }
 
-/****************************************/
-/**   Test must have mongod installed  **/
-/****************************************/
+/*******************************************/
+/** Tests that must have mongod installed **/
+/*******************************************/
 
 func Example_spec_procVote_full() {
 	cmd := exec.Command("mongod", "-version")

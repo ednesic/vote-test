@@ -1,4 +1,9 @@
 docker-compose up
 
+- testes election
+- separar protos
 - ver erros
-- ver id unico
+- log
+- elk
+- scale
+- kube

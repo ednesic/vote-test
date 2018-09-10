@@ -16,12 +16,8 @@ import (
 )
 
 const (
-	errEnvVarFail          = "Failed to get environment variables:"
 	errInvalidID           = "Invalid Id"
 	errInvalidElectionData = "Invalid election Data"
-	errInvalidVoteData     = "Invalid Vote Data"
-	errInvalidMgoSession   = "Failed to retrieve mongo session"
-	errParseTimestamp      = "Failed to parse timestamp"
 	errConn                = "Failed connect to mongodb"
 	errRetrieveQuery       = "Failed to retrieve query"
 	errNotFound            = "Not found election"
@@ -55,13 +51,13 @@ func (s *server) run() {
 
 func (s *server) initRoutes() *mux.Router {
 	router := mux.NewRouter()
-	router.HandleFunc("/election", s.createElection).Methods("PUT")
+	router.HandleFunc("/election", s.upsertElection).Methods("PUT")
 	router.HandleFunc("/election/{id}", s.getElection).Methods("GET")
 	router.HandleFunc("/election/{id}", s.getElection).Methods("DELETE")
 	return router
 }
 
-func (s *server) createElection(w http.ResponseWriter, r *http.Request) {
+func (s *server) upsertElection(w http.ResponseWriter, r *http.Request) {
 	var election pb.Election
 	if json.NewDecoder(r.Body).Decode(&election) != nil {
 		http.Error(w, errInvalidElectionData, http.StatusBadRequest)
@@ -74,7 +70,7 @@ func (s *server) createElection(w http.ResponseWriter, r *http.Request) {
 
 	election.Inicio = ptypes.TimestampNow()
 	if s.mgoDal.Upsert(s.Collection, bson.M{"id": election.Id}, &election) != nil {
-		http.Error(w, "Failed to insert/update election", 500)
+		http.Error(w, "Failed to insert/update election", http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -97,7 +93,7 @@ func (s *server) getElection(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errNotFound, http.StatusNotFound)
 			return
 		}
-		http.Error(w, errRetrieveQuery, 500)
+		http.Error(w, errRetrieveQuery, http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -115,7 +111,7 @@ func (s *server) deleteElection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.mgoDal.Remove(s.Collection, bson.M{"id": id}); err != nil {
-		http.Error(w, errRetrieveQuery, 500)
+		http.Error(w, errRetrieveQuery, http.StatusUnprocessableEntity)
 		return
 	}
 

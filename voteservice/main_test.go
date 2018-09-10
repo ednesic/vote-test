@@ -104,7 +104,6 @@ func Test_server_createVote(t *testing.T) {
 			defer res.Body.Close()
 
 			assert.Equal(t, tt.statusCode, res.StatusCode, "Did not get the same response code")
-			assert.Nil(t, err, "could not read response body")
 			assert.Equal(t, tt.responseBody, strings.TrimSuffix(rec.Body.String(), "\n"))
 		})
 	}
