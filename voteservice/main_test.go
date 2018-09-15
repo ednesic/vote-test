@@ -8,41 +8,13 @@ import (
 	"testing"
 
 	"github.com/ednesic/vote-test/pb"
-	nats "github.com/nats-io/go-nats"
-	"github.com/nats-io/go-nats-streaming"
+	"github.com/ednesic/vote-test/tests"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-type stanConnMock struct {
-	mock.Mock
-}
-
-func (s stanConnMock) Publish(subject string, data []byte) error {
-	args := s.Called(subject, data)
-	return args.Error(0)
-}
-
-func (s stanConnMock) PublishAsync(subject string, data []byte, ah stan.AckHandler) (string, error) {
-	return "", nil
-}
-func (s stanConnMock) Subscribe(subject string, cb stan.MsgHandler, opts ...stan.SubscriptionOption) (stan.Subscription, error) {
-	return nil, nil
-}
-func (s stanConnMock) QueueSubscribe(subject, qgroup string, cb stan.MsgHandler, opts ...stan.SubscriptionOption) (stan.Subscription, error) {
-	return nil, nil
-}
-
-func (s stanConnMock) Close() error {
-	return nil
-}
-
-func (s stanConnMock) NatsConn() *nats.Conn {
-	return nil
-}
-
 func Test_server_publishEvent(t *testing.T) {
-	stanMock := new(stanConnMock)
+	stanMock := new(tests.StanConnMock)
 	stanMock.On("Publish", mock.Anything, mock.Anything).Return(nil)
 	type args struct {
 		vote *pb.Vote
@@ -53,12 +25,12 @@ func Test_server_publishEvent(t *testing.T) {
 		wantErr bool
 	}{
 		{"Empty vote", args{&pb.Vote{}}, false},
-		{"Empty user on vote", args{&pb.Vote{User: "", Id: 12}}, false},
-		{"Empty id on vote", args{&pb.Vote{User: "1", Id: 0}}, false},
-		{"Normal vote", args{&pb.Vote{User: "1", Id: 90}}, false},
-		{"Negative id on vote", args{&pb.Vote{User: "1", Id: -1}}, false},
-		{"High value on vote", args{&pb.Vote{User: "1", Id: 1000000000}}, false},
-		{"Big string on vote", args{&pb.Vote{User: "sdgnasodgsdgsino", Id: 1}}, false},
+		{"Empty user on vote", args{&pb.Vote{User: "", ElectionId: 12}}, false},
+		{"Empty id on vote", args{&pb.Vote{User: "1", ElectionId: 0}}, false},
+		{"Normal vote", args{&pb.Vote{User: "1", ElectionId: 90}}, false},
+		{"Negative id on vote", args{&pb.Vote{User: "1", ElectionId: -1}}, false},
+		{"High value on vote", args{&pb.Vote{User: "1", ElectionId: 1000000000}}, false},
+		{"Big string on vote", args{&pb.Vote{User: "sdgnasodgsdgsino", ElectionId: 1}}, false},
 		{"Nil vote must fail", args{nil}, true},
 	}
 	for _, tt := range tests {
@@ -72,7 +44,7 @@ func Test_server_publishEvent(t *testing.T) {
 }
 
 func Test_server_createVote(t *testing.T) {
-	stanMock := new(stanConnMock)
+	stanMock := new(tests.StanConnMock)
 	tests := []struct {
 		name         string
 		body         string
@@ -80,14 +52,14 @@ func Test_server_createVote(t *testing.T) {
 		responseBody string
 		pubRes       error
 	}{
-		{"Could not process message", `{"id":12,"user":"abc"}`, http.StatusUnprocessableEntity, errFailPubVote, errors.New("err")},
-		{"Creation successful", `{"id":12,"user":"abc"}`, http.StatusCreated, `{"id":12,"user":"abc"}`, nil},
-		{"Wrong user type", `{"id":"12"}`, http.StatusBadRequest, errInvalidData, nil},
+		{"Could not process message", `{"electionId":12,"user":"abc"}`, http.StatusInternalServerError, errFailPubVote, errors.New("err")},
+		{"Creation successful", `{"electionId":12,"user":"abc"}`, http.StatusCreated, `{"ElectionId":12,"user":"abc"}`, nil},
+		{"Wrong user type", `{"electionId":"12"}`, http.StatusBadRequest, errInvalidData, nil},
 		{"Wrong id type", `{"user":12}`, http.StatusBadRequest, errInvalidData, nil},
-		{"Missing user", `{"id":12}`, http.StatusBadRequest, errInvalidUser, nil},
+		{"Missing user", `{"electionId":12}`, http.StatusBadRequest, errInvalidUser, nil},
 		{"Missing id", `{"user":"abc"}`, http.StatusBadRequest, errInvalidID, nil},
 		{"Missing all", `{}`, http.StatusBadRequest, errInvalidID, nil},
-		{"Wrong parameters", `{"id":12,"user":"abc","Home: 5"}`, http.StatusBadRequest, errInvalidData, nil},
+		{"Wrong parameters", `{"electionId":12,"user":"abc","Home: 5"}`, http.StatusBadRequest, errInvalidData, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

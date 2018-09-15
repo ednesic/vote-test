@@ -4,7 +4,7 @@ option go_package="pb";
 import "google/protobuf/timestamp.proto";
 
 message Vote {
-    int32  id  = 1;
+    int32  ElectionId  = 1;
     string user = 2;
 }
 

@@ -70,7 +70,7 @@ func (s *server) upsertElection(w http.ResponseWriter, r *http.Request) {
 
 	election.Inicio = ptypes.TimestampNow()
 	if s.mgoDal.Upsert(s.Collection, bson.M{"id": election.Id}, &election) != nil {
-		http.Error(w, "Failed to insert/update election", http.StatusUnprocessableEntity)
+		http.Error(w, "Failed to insert/update election", http.StatusInternalServerError)
 		return
 	}
 
@@ -93,7 +93,7 @@ func (s *server) getElection(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errNotFound, http.StatusNotFound)
 			return
 		}
-		http.Error(w, errRetrieveQuery, http.StatusUnprocessableEntity)
+		http.Error(w, errRetrieveQuery, http.StatusInternalServerError)
 		return
 	}
 
@@ -111,7 +111,7 @@ func (s *server) deleteElection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.mgoDal.Remove(s.Collection, bson.M{"id": id}); err != nil {
-		http.Error(w, errRetrieveQuery, http.StatusUnprocessableEntity)
+		http.Error(w, errRetrieveQuery, http.StatusInternalServerError)
 		return
 	}
 

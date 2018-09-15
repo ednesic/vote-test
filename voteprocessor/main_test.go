@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"log"
@@ -9,53 +10,27 @@ import (
 
 	"github.com/ednesic/vote-test/db"
 	"github.com/ednesic/vote-test/pb"
+	"github.com/ednesic/vote-test/tests"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/nats-io/go-nats-streaming"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	gock "gopkg.in/h2non/gock.v1"
 	"gopkg.in/mgo.v2/dbtest"
 )
 
 var Server dbtest.DBServer
 
-type DataAccessLayerMock struct {
-	mock.Mock
-}
-
-func (m *DataAccessLayerMock) Insert(collName string, doc interface{}) error {
-	args := m.Called(collName, doc)
-	return args.Error(0)
-}
-func (m *DataAccessLayerMock) FindOne(collName string, query interface{}, doc interface{}) error {
-	args := m.Called(collName, query, doc)
-	return args.Error(0)
-}
-
-func (m *DataAccessLayerMock) Update(collName string, selector interface{}, update interface{}) error {
-	args := m.Called(collName, selector, update)
-	return args.Error(0)
-}
-
-func (m *DataAccessLayerMock) Upsert(collName string, selector interface{}, update interface{}) error {
-	args := m.Called(collName, selector, update)
-	return args.Error(0)
-}
-
-func (m *DataAccessLayerMock) Remove(collName string, selector interface{}) error {
-	args := m.Called(collName, selector)
-	return args.Error(0)
-}
-
 func Example_procVote_election_not_found() {
 	var s spec
-	mgoDal := &DataAccessLayerMock{}
+	mgoDal := &tests.DataAccessLayerMock{}
 	s.mgoDal = mgoDal
 	mgoDal.On("FindOne", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("Not found")).Once()
 
 	msg := &stan.Msg{}
-	m, _ := proto.Marshal(&pb.Vote{Id: 2, User: "Test2"})
+	m, _ := proto.Marshal(&pb.Vote{ElectionId: 2, User: "Test2"})
 	msg.Data = m
 	err := msg.Unmarshal(m)
 	if err != nil {
@@ -67,7 +42,7 @@ func Example_procVote_election_not_found() {
 
 func Example_procVote_fail_unmarshal() {
 	var s spec
-	mgoDal := &DataAccessLayerMock{}
+	mgoDal := &tests.DataAccessLayerMock{}
 	s.mgoDal = mgoDal
 	mgoDal.On("Insert", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	mgoDal.On("FindOne", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
@@ -81,24 +56,36 @@ func Example_procVote_fail_unmarshal() {
 }
 
 func Test_getElectionEnd(t *testing.T) {
-	mgoDal := &DataAccessLayerMock{}
+	const server = "http://localhost"
+	defer gock.Off()
 
 	tests := []struct {
-		name     string
-		queryRet interface{}
-		wantErr  bool
+		name       string
+		reply      int
+		errorReply error
+		jsonRes    string
+		wantErr    bool
 	}{
-		{"Get election", nil, false},
-		{"Error on Find", errors.New("err"), true},
+		{"Election termination found", 200, nil, `{"id": 1, "termino": { "seconds": 1536525322 }}`, false},
+		{"Error on get", 500, errors.New("fail on get"), "nil", true},
+		{"Error on body read", 500, nil, "", true},
+		{"Election not ok", 404, nil, `{"id": 3, "termino": { "seconds": 1536525322 }}`, true},
+		{"Election unmarshal error", 200, nil, `{city: 3, "termino": { "seconds": 1536525322 }}`, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mgoDal.On("FindOne", mock.Anything, mock.Anything, mock.Anything).Return(tt.queryRet).Once()
+			gock.New("(.*)").
+				Reply(tt.reply).
+				BodyString(tt.jsonRes)
 
-			_, err := getElectionEnd(mgoDal, "test", 1)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("getElectionEnd() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			termino, err := getElectionEnd(server, 1)
+			if !tt.wantErr {
+				var e pb.Election
+				json.Unmarshal([]byte(tt.jsonRes), &e)
+				assert.Nil(t, err)
+				assert.Equal(t, termino, e.Termino)
+			} else {
+				assert.NotNil(t, err)
 			}
 		})
 	}
@@ -136,7 +123,7 @@ func Test_isElectionOver(t *testing.T) {
 }
 
 func Test_vote(t *testing.T) {
-	mgoDal := &DataAccessLayerMock{}
+	mgoDal := &tests.DataAccessLayerMock{}
 	type args struct {
 		dal  db.DataAccessLayer
 		coll string
@@ -174,8 +161,7 @@ func Example_spec_procVote_full() {
 
 	var s spec
 	s.Database = "test"
-	s.ElectionColl = "test1"
-	s.VoteColl = "test2"
+	s.Coll = "test1"
 
 	tafter := ptypes.TimestampNow()
 
@@ -185,7 +171,7 @@ func Example_spec_procVote_full() {
 	Server.SetPath(tempDir)
 	mockSession := Server.Session()
 
-	mockSession.DB(s.Database).C(s.ElectionColl).Insert(&pb.Election{Id: 1, Inicio: tafter, Termino: tafter})
+	mockSession.DB(s.Database).C(s.Coll).Insert(&pb.Election{Id: 1, Inicio: tafter, Termino: tafter})
 
 	mgoDal, err := db.NewMongoDAL(mockSession.LiveServers()[0], s.Database)
 	if err != nil {
@@ -194,7 +180,7 @@ func Example_spec_procVote_full() {
 	s.mgoDal = mgoDal
 
 	msg := &stan.Msg{}
-	m, _ := proto.Marshal(&pb.Vote{Id: 1, User: "test"})
+	m, _ := proto.Marshal(&pb.Vote{ElectionId: 1, User: "test"})
 	msg.Data = m
 	err = msg.Unmarshal(m)
 	if err != nil {
@@ -217,8 +203,7 @@ func Example_spec_procVote_election_ended() {
 
 	var s spec
 	s.Database = "test"
-	s.ElectionColl = "test1"
-	s.VoteColl = "test2"
+	s.Coll = "test1"
 
 	tbefore := ptypes.TimestampNow()
 
@@ -228,7 +213,7 @@ func Example_spec_procVote_election_ended() {
 	Server.SetPath(tempDir)
 	mockSession := Server.Session()
 
-	mockSession.DB(s.Database).C(s.ElectionColl).Insert(&pb.Election{Id: 2, Inicio: tbefore, Termino: tbefore})
+	mockSession.DB(s.Database).C(s.Coll).Insert(&pb.Election{Id: 2, Inicio: tbefore, Termino: tbefore})
 
 	mgoDal, err := db.NewMongoDAL(mockSession.LiveServers()[0], s.Database)
 	if err != nil {
@@ -237,7 +222,7 @@ func Example_spec_procVote_election_ended() {
 	s.mgoDal = mgoDal
 
 	msg := &stan.Msg{}
-	m, _ := proto.Marshal(&pb.Vote{Id: 2, User: "test"})
+	m, _ := proto.Marshal(&pb.Vote{ElectionId: 2, User: "test"})
 	msg.Data = m
 	err = msg.Unmarshal(m)
 	if err != nil {
@@ -247,56 +232,4 @@ func Example_spec_procVote_election_ended() {
 	// Output: Election has ended
 
 	mockSession.Close()
-}
-
-func Test_getElectionEnd_w_mongod_mock(t *testing.T) {
-	cmd := exec.Command("mongod", "-version")
-	err := cmd.Run()
-
-	if err != nil {
-		t.Skipf("Mongod is not installed. Skipping Example_spec_procVote_full test")
-		return
-	}
-
-	dbName := "test"
-	collName := "test1"
-	tbefore := ptypes.TimestampNow()
-	tbefore.Seconds = tbefore.GetSeconds() - 10000
-
-	tempDir, _ := ioutil.TempDir("", "testing")
-	Server.SetPath(tempDir)
-	mockSession := Server.Session()
-
-	mockSession.DB(dbName).C(collName).Insert(&pb.Election{Id: 3, Inicio: tbefore, Termino: tbefore})
-
-	mgoDal, err := db.NewMongoDAL(mockSession.LiveServers()[0], dbName)
-	assert.Nil(t, err, "Failed to create mongo mock session")
-
-	type args struct {
-		coll string
-		id   int32
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-		want    *timestamp.Timestamp
-	}{
-		{"Get election", args{coll: collName, id: 3}, false, tbefore},
-		{"Error on Find", args{coll: collName, id: 4}, true, nil},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-
-			got, err := getElectionEnd(mgoDal, tt.args.coll, tt.args.id)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("getElectionEnd() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !tt.wantErr {
-				assert.Equal(t, tt.want.Seconds, got.Seconds, "Did not get the same timestamp seconds")
-				assert.Equal(t, tt.want.Nanos, got.Nanos, "Did not get the same timestamp nanoseconds")
-			}
-		})
-	}
 }

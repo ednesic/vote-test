@@ -1,8 +1,12 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"runtime"
 	"time"
 
@@ -14,7 +18,6 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/nats-io/go-nats-streaming"
 	"github.com/nats-io/nuid"
-	"gopkg.in/mgo.v2/bson"
 )
 
 const (
@@ -27,17 +30,17 @@ const (
 )
 
 type spec struct {
-	VoteChannel   string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
-	NatsClusterID string `envconfig:"NATS_CLUSTER_ID" default:"test-cluster"`
-	NatsServer    string `envconfig:"NATS_SERVER" default:"localhost:4222"`
-	ClientID      string `envconfig:"CLIENT_ID" default:"vote-processor"`
-	DurableID     string `envconfig:"DURABLE_ID" default:"store-durable"`
-	QueueGroup    string `envconfig:"QUEUE_GROUP" default:"vote-processor-q"`
-	MgoURL        string `envconfig:"MONGO_URL" default:"localhost:27017"`
-	ElectionColl  string `envconfig:"ELECTION_COLLECTION" default:"election"`
-	VoteColl      string `envconfig:"VOTE_COLLECTION" default:"vote"`
-	Database      string `envconfig:"DATABASE" default:"elections"`
-	mgoDal        db.DataAccessLayer
+	VoteChannel     string `envconfig:"VOTE_CHANNEL" default:"create-vote"`
+	NatsClusterID   string `envconfig:"NATS_CLUSTER_ID" default:"test-cluster"`
+	NatsServer      string `envconfig:"NATS_SERVER" default:"localhost:4222"`
+	ClientID        string `envconfig:"CLIENT_ID" default:"vote-processor"`
+	DurableID       string `envconfig:"DURABLE_ID" default:"store-durable"`
+	QueueGroup      string `envconfig:"QUEUE_GROUP" default:"vote-processor-q"`
+	MgoURL          string `envconfig:"MONGO_URL" default:"localhost:27017"`
+	Coll            string `envconfig:"COLLECTION" default:"election"`
+	Database        string `envconfig:"DATABASE" default:"elections"`
+	ElectionService string `envconfig:"ELECTION_SERVICE" default:"localhost:9223"`
+	mgoDal          db.DataAccessLayer
 }
 
 func main() {
@@ -78,7 +81,7 @@ func (s *spec) procVote(msg *stan.Msg) {
 		return
 	}
 
-	end, err := getElectionEnd(s.mgoDal, s.ElectionColl, v.Id)
+	end, err := getElectionEnd(s.ElectionService, v.ElectionId)
 	if err != nil {
 		fmt.Println(errElectionNotFound, err)
 		return
@@ -89,17 +92,34 @@ func (s *spec) procVote(msg *stan.Msg) {
 		return
 	}
 
-	if err = vote(s.mgoDal, s.VoteColl, &v); err != nil {
+	if err = vote(s.mgoDal, s.Coll, &v); err != nil {
 		fmt.Println(errFailProcVote, err)
 	}
 }
 
-func getElectionEnd(dal db.DataAccessLayer, coll string, id int32) (*timestamp.Timestamp, error) {
-	var election pb.Election
-	if err := dal.FindOne(coll, bson.M{"id": id}, &election); err != nil {
+func getElectionEnd(serviceName string, id int32) (*timestamp.Timestamp, error) {
+	var e pb.Election
+	resp, err := http.Get(serviceName + "/election/" + string(id))
+	if err != nil {
 		return nil, err
 	}
-	return election.Termino, nil
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New(string(body))
+	}
+
+	err = json.Unmarshal(body, &e)
+	if err != nil {
+		return nil, err
+	}
+
+	return e.Termino, nil
 }
 
 func isElectionOver(end *timestamp.Timestamp) bool {

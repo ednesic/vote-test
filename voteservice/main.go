@@ -72,7 +72,7 @@ func (s *server) createVote(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errInvalidData, http.StatusBadRequest)
 		return
 	}
-	if vote.GetId() <= 0 {
+	if vote.GetElectionId() <= 0 {
 		http.Error(w, errInvalidID, http.StatusBadRequest)
 		return
 	}
@@ -83,7 +83,7 @@ func (s *server) createVote(w http.ResponseWriter, r *http.Request) {
 
 	err = s.publishEvent(&vote)
 	if err != nil {
-		http.Error(w, errFailPubVote, http.StatusUnprocessableEntity)
+		http.Error(w, errFailPubVote, http.StatusInternalServerError)
 		return
 	}
 

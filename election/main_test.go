@@ -8,42 +8,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ednesic/vote-test/tests"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	mgo "gopkg.in/mgo.v2"
 )
 
-type DataAccessLayerMock struct {
-	mock.Mock
-}
-
-func (m *DataAccessLayerMock) Insert(collName string, doc interface{}) error {
-	args := m.Called(collName, doc)
-	return args.Error(0)
-}
-func (m *DataAccessLayerMock) FindOne(collName string, query interface{}, doc interface{}) error {
-	args := m.Called(collName, query, doc)
-	return args.Error(0)
-}
-
-func (m *DataAccessLayerMock) Update(collName string, selector interface{}, update interface{}) error {
-	args := m.Called(collName, selector, update)
-	return args.Error(0)
-}
-
-func (m *DataAccessLayerMock) Upsert(collName string, selector interface{}, update interface{}) error {
-	args := m.Called(collName, selector, update)
-	return args.Error(0)
-}
-
-func (m *DataAccessLayerMock) Remove(collName string, selector interface{}) error {
-	args := m.Called(collName, selector)
-	return args.Error(0)
-}
-
 func Test_server_upsertElection(t *testing.T) {
-	mgoDal := &DataAccessLayerMock{}
+	mgoDal := &tests.DataAccessLayerMock{}
 
 	tests := []struct {
 		name       string
@@ -52,7 +25,7 @@ func Test_server_upsertElection(t *testing.T) {
 		queryRet   error
 	}{
 		{"Create Election", `{"id": 3, "termino": { "seconds": 1536525322 }}`, http.StatusCreated, nil},
-		{"Upsert function do not work", `{"id": 3, "termino": { "seconds": 1536525322 }}`, http.StatusUnprocessableEntity, errors.New("Upsert fail")},
+		{"Upsert function do not work", `{"id": 3, "termino": { "seconds": 1536525322 }}`, http.StatusInternalServerError, errors.New("Upsert fail")},
 		{"Id = 0", `{"id": 0, "termino": { "seconds": 1536525322 }}`, http.StatusBadRequest, nil},
 		{"Invalid payload", ``, http.StatusBadRequest, nil},
 	}
@@ -77,7 +50,7 @@ func Test_server_upsertElection(t *testing.T) {
 }
 
 func Test_server_getElection(t *testing.T) {
-	mgoDal := &DataAccessLayerMock{}
+	mgoDal := &tests.DataAccessLayerMock{}
 
 	tests := []struct {
 		name       string
@@ -87,7 +60,7 @@ func Test_server_getElection(t *testing.T) {
 	}{
 		{"Get Election Ok", "1", http.StatusOK, nil},
 		{"Find fail(not found)", "1", http.StatusNotFound, mgo.ErrNotFound},
-		{"Find fail", "1", http.StatusUnprocessableEntity, errors.New("test error")},
+		{"Find fail", "1", http.StatusInternalServerError, errors.New("test error")},
 		{"Id != int", "test", http.StatusBadRequest, nil},
 	}
 	for _, tt := range tests {
@@ -118,7 +91,7 @@ func Test_server_getElection(t *testing.T) {
 }
 
 func Test_server_deleteElection(t *testing.T) {
-	mgoDal := &DataAccessLayerMock{}
+	mgoDal := &tests.DataAccessLayerMock{}
 
 	tests := []struct {
 		name       string
@@ -127,7 +100,7 @@ func Test_server_deleteElection(t *testing.T) {
 		queryRet   error
 	}{
 		{"Delete Election Ok", "1", http.StatusOK, nil},
-		{"Delete fail", "1", http.StatusUnprocessableEntity, errors.New("test error")},
+		{"Delete fail", "1", http.StatusInternalServerError, errors.New("test error")},
 		{"Id != int", "test", http.StatusBadRequest, nil},
 	}
 	for _, tt := range tests {
