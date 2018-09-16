@@ -41,7 +41,7 @@ type spec struct {
 	MgoURL          string `envconfig:"MONGO_URL" default:"localhost:27017"`
 	Coll            string `envconfig:"COLLECTION" default:"election"`
 	Database        string `envconfig:"DATABASE" default:"elections"`
-	ElectionService string `envconfig:"ELECTION_SERVICE" default:"localhost:9223"`
+	ElectionService string `envconfig:"ELECTION_SERVICE" default:"http://localhost:9223"`
 
 	mgoDal db.DataAccessLayer
 	logger *zap.Logger
@@ -87,14 +87,12 @@ func (s *spec) procVote(msg *stan.Msg) {
 	v := pb.Vote{}
 	err := proto.Unmarshal(msg.Data, &v)
 	if err != nil {
-		fmt.Println(errFailProcVote, err)
 		defer s.logger.Error(errFailProcVote, zap.String("electionService", s.ElectionService), zap.Error(err), zap.String("hostname", os.Getenv("HOSTNAME")))
 		return
 	}
 
 	end, err := getElectionEnd(s.ElectionService, v.ElectionId)
 	if err != nil {
-		fmt.Println(errElectionNotFound, err)
 		defer s.logger.Error(errElectionNotFound, zap.String("electionService", s.ElectionService), zap.Int32("electionId", v.ElectionId), zap.String("User", v.User), zap.Error(err), zap.String("hostname", os.Getenv("HOSTNAME")))
 		return
 	}
@@ -105,7 +103,6 @@ func (s *spec) procVote(msg *stan.Msg) {
 	}
 
 	if err = vote(s.mgoDal, s.Coll, &v); err != nil {
-		fmt.Println(errFailProcVote, err)
 		defer s.logger.Error(errElectionEnded, zap.Int32("electionId", v.ElectionId), zap.Error(err), zap.String("User", v.User), zap.String("hostname", os.Getenv("HOSTNAME")))
 	}
 	defer s.logger.Info("Vote processed", zap.Int32("electionId", v.ElectionId), zap.String("User", v.User), zap.String("hostname", os.Getenv("HOSTNAME")))
@@ -113,7 +110,7 @@ func (s *spec) procVote(msg *stan.Msg) {
 
 func getElectionEnd(serviceName string, id int32) (*timestamp.Timestamp, error) {
 	var e pb.Election
-	resp, err := http.Get(serviceName + "/election/" + string(id))
+	resp, err := http.Get(serviceName + "/election/" + fmt.Sprint(id))
 	if err != nil {
 		return nil, err
 	}

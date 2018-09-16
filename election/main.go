@@ -63,7 +63,7 @@ func (s *server) initRoutes() *mux.Router {
 	router := mux.NewRouter()
 	router.HandleFunc("/election", s.upsertElection).Methods("PUT")
 	router.HandleFunc("/election/{id}", s.getElection).Methods("GET")
-	router.HandleFunc("/election/{id}", s.getElection).Methods("DELETE")
+	router.HandleFunc("/election/{id}", s.deleteElection).Methods("DELETE")
 	return router
 }
 
@@ -99,18 +99,18 @@ func (s *server) getElection(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(vars["id"], 10, 32)
 	if err != nil {
 		http.Error(w, errInvalidID, http.StatusBadRequest)
-		defer s.logger.Error(errInvalidID, zap.Int64("Id", id), zap.Int("StatusCode", http.StatusBadRequest), zap.String("hostname", os.Getenv("HOSTNAME")))
+		defer s.logger.Error(errInvalidID, zap.Int64("Id", id), zap.Error(err), zap.Int("StatusCode", http.StatusBadRequest), zap.String("hostname", os.Getenv("HOSTNAME")))
 		return
 	}
 
 	if err := s.mgoDal.FindOne(s.Collection, bson.M{"id": id}, &election); err != nil {
 		if err == mgo.ErrNotFound {
 			http.Error(w, errNotFound, http.StatusNotFound)
-			defer s.logger.Error(errNotFound, zap.Int64("Id", id), zap.Int("StatusCode", http.StatusNotFound), zap.String("hostname", os.Getenv("HOSTNAME")))
+			defer s.logger.Error(errNotFound, zap.Int64("Id", id), zap.Error(err), zap.Int("StatusCode", http.StatusNotFound), zap.String("hostname", os.Getenv("HOSTNAME")))
 			return
 		}
 		http.Error(w, errRetrieveQuery, http.StatusInternalServerError)
-		defer s.logger.Error(errRetrieveQuery, zap.Int64("Id", id), zap.Int("StatusCode", http.StatusInternalServerError), zap.String("hostname", os.Getenv("HOSTNAME")))
+		defer s.logger.Error(errRetrieveQuery, zap.Int64("Id", id), zap.Error(err), zap.Int("StatusCode", http.StatusInternalServerError), zap.String("hostname", os.Getenv("HOSTNAME")))
 		return
 	}
 
@@ -125,13 +125,13 @@ func (s *server) deleteElection(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(vars["id"], 10, 32)
 	if err != nil {
 		http.Error(w, errInvalidID, http.StatusBadRequest)
-		defer s.logger.Error(errInvalidID, zap.Int64("Id", id), zap.Int("StatusCode", http.StatusBadRequest), zap.String("hostname", os.Getenv("HOSTNAME")))
+		defer s.logger.Error(errInvalidID, zap.Int64("Id", id), zap.Error(err), zap.Int("StatusCode", http.StatusBadRequest), zap.String("hostname", os.Getenv("HOSTNAME")))
 		return
 	}
 
 	if err := s.mgoDal.Remove(s.Collection, bson.M{"id": id}); err != nil {
 		http.Error(w, errRetrieveQuery, http.StatusInternalServerError)
-		defer s.logger.Error(errRetrieveQuery, zap.Int64("Id", id), zap.Int("StatusCode", http.StatusInternalServerError), zap.String("hostname", os.Getenv("HOSTNAME")))
+		defer s.logger.Error(errRetrieveQuery, zap.Int64("Id", id), zap.Error(err), zap.Int("StatusCode", http.StatusInternalServerError), zap.String("hostname", os.Getenv("HOSTNAME")))
 		return
 	}
 
