@@ -12,11 +12,13 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/zap"
 	mgo "gopkg.in/mgo.v2"
 )
 
 func Test_server_upsertElection(t *testing.T) {
 	mgoDal := &tests.DataAccessLayerMock{}
+	log, _ := zap.NewProduction()
 
 	tests := []struct {
 		name       string
@@ -33,6 +35,7 @@ func Test_server_upsertElection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &server{
 				mgoDal: mgoDal,
+				logger: log,
 			}
 			mgoDal.On("Upsert", mock.Anything, mock.Anything, mock.Anything).Return(tt.queryRet).Once()
 
@@ -51,6 +54,7 @@ func Test_server_upsertElection(t *testing.T) {
 
 func Test_server_getElection(t *testing.T) {
 	mgoDal := &tests.DataAccessLayerMock{}
+	log, _ := zap.NewProduction()
 
 	tests := []struct {
 		name       string
@@ -67,6 +71,7 @@ func Test_server_getElection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &server{
 				mgoDal: mgoDal,
+				logger: log,
 			}
 
 			mgoDal.On("FindOne", mock.Anything, mock.Anything, mock.Anything).Return(tt.queryRet).Once()
@@ -92,6 +97,7 @@ func Test_server_getElection(t *testing.T) {
 
 func Test_server_deleteElection(t *testing.T) {
 	mgoDal := &tests.DataAccessLayerMock{}
+	log, _ := zap.NewProduction()
 
 	tests := []struct {
 		name       string
@@ -107,6 +113,7 @@ func Test_server_deleteElection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &server{
 				mgoDal: mgoDal,
+				logger: log,
 			}
 
 			mgoDal.On("Remove", mock.Anything, mock.Anything).Return(tt.queryRet).Once()

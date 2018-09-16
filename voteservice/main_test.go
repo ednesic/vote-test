@@ -11,9 +11,11 @@ import (
 	"github.com/ednesic/vote-test/tests"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/zap"
 )
 
 func Test_server_publishEvent(t *testing.T) {
+	log, _ := zap.NewProduction()
 	stanMock := new(tests.StanConnMock)
 	stanMock.On("Publish", mock.Anything, mock.Anything).Return(nil)
 	type args struct {
@@ -35,7 +37,7 @@ func Test_server_publishEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &server{stanConn: stanMock}
+			s := &server{stanConn: stanMock, logger: log}
 			if err := s.publishEvent(tt.args.vote); (err != nil) != tt.wantErr {
 				t.Errorf("server.publishEvent() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -44,6 +46,8 @@ func Test_server_publishEvent(t *testing.T) {
 }
 
 func Test_server_createVote(t *testing.T) {
+	log, _ := zap.NewProduction()
+
 	stanMock := new(tests.StanConnMock)
 	tests := []struct {
 		name         string
@@ -66,6 +70,7 @@ func Test_server_createVote(t *testing.T) {
 			stanMock.On("Publish", mock.Anything, mock.Anything).Return(tt.pubRes).Once()
 			s := &server{
 				stanConn: stanMock,
+				logger:   log,
 			}
 			req, err := http.NewRequest("POST", "localhost:9222/vote", strings.NewReader(tt.body))
 			assert.Nil(t, err, "could not create request")

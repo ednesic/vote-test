@@ -1,6 +1,6 @@
 docker-compose up
 
-- log
+- log (https://hackernoon.com/simple-http-middleware-with-go-79a4ad62889b)
 - elk
 - scale
 - kube

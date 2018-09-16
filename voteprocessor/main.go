@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"runtime"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/nats-io/go-nats-streaming"
 	"github.com/nats-io/nuid"
+	"go.uber.org/zap"
 )
 
 const (
@@ -40,7 +42,9 @@ type spec struct {
 	Coll            string `envconfig:"COLLECTION" default:"election"`
 	Database        string `envconfig:"DATABASE" default:"elections"`
 	ElectionService string `envconfig:"ELECTION_SERVICE" default:"localhost:9223"`
-	mgoDal          db.DataAccessLayer
+
+	mgoDal db.DataAccessLayer
+	logger *zap.Logger
 }
 
 func main() {
@@ -62,6 +66,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	s.logger, err = zap.NewProduction()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	stanConn.QueueSubscribe(s.VoteChannel, s.QueueGroup, s.procVote, stan.DurableName(s.DurableID))
 
 	s.mgoDal, err = db.NewMongoDAL(s.MgoURL, s.Database)
@@ -70,6 +79,7 @@ func main() {
 	}
 
 	runtime.Goexit()
+	defer s.logger.Sync()
 	defer stanConn.Close()
 }
 
@@ -78,23 +88,27 @@ func (s *spec) procVote(msg *stan.Msg) {
 	err := proto.Unmarshal(msg.Data, &v)
 	if err != nil {
 		fmt.Println(errFailProcVote, err)
+		defer s.logger.Error(errFailProcVote, zap.String("electionService", s.ElectionService), zap.Error(err), zap.String("hostname", os.Getenv("HOSTNAME")))
 		return
 	}
 
 	end, err := getElectionEnd(s.ElectionService, v.ElectionId)
 	if err != nil {
 		fmt.Println(errElectionNotFound, err)
+		defer s.logger.Error(errElectionNotFound, zap.String("electionService", s.ElectionService), zap.Int32("electionId", v.ElectionId), zap.String("User", v.User), zap.Error(err), zap.String("hostname", os.Getenv("HOSTNAME")))
 		return
 	}
 
 	if isElectionOver(end) {
-		fmt.Println(errElectionEnded)
+		defer s.logger.Warn(errElectionEnded, zap.Int32("electionId", v.ElectionId), zap.String("User", v.User), zap.String("hostname", os.Getenv("HOSTNAME")))
 		return
 	}
 
 	if err = vote(s.mgoDal, s.Coll, &v); err != nil {
 		fmt.Println(errFailProcVote, err)
+		defer s.logger.Error(errElectionEnded, zap.Int32("electionId", v.ElectionId), zap.Error(err), zap.String("User", v.User), zap.String("hostname", os.Getenv("HOSTNAME")))
 	}
+	defer s.logger.Info("Vote processed", zap.Int32("electionId", v.ElectionId), zap.String("User", v.User), zap.String("hostname", os.Getenv("HOSTNAME")))
 }
 
 func getElectionEnd(serviceName string, id int32) (*timestamp.Timestamp, error) {
@@ -125,7 +139,6 @@ func getElectionEnd(serviceName string, id int32) (*timestamp.Timestamp, error) 
 func isElectionOver(end *timestamp.Timestamp) bool {
 	t, err := ptypes.Timestamp(end)
 	if err != nil {
-		fmt.Println(errParseTimestamp, err)
 		return true
 	}
 	return time.Now().After(t)
