@@ -48,8 +48,9 @@ services:
       - mongo
     restart: on-failure
   stan:
-    image: nats-streaming
-    restart: on-failure
+    build:
+      context: ./stanImage
+    restart: always
   mongo:
     image: mongo
     restart: on-failure
