@@ -1,5 +1,13 @@
 version: '3'
 services:
+  traefik:
+    image: traefik
+    command: --api --docker
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
   election-service:
     build:
       context: ./election
@@ -8,10 +16,11 @@ services:
       - commons.env
     depends_on:
       - mongo
-    environment:
-      MONGO_URL: mongo
-    ports:
-      - 8081:9223
+    labels:
+      - "traefik.backend=election-service"
+      - "traefik.frontend.rule=PathPrefix: /election"
+      - "traefik.port=9223"
+      - "traefik.frontend.entryPoints=http"
     restart: on-failure
   vote-service:
     build:
@@ -22,8 +31,11 @@ services:
     depends_on:
       - stan
       - mongo
-    ports:
-      - 8080:9222
+    labels:
+      - "traefik.backend=vote-service"
+      - "traefik.frontend.rule=PathPrefix: /vote"
+      - "traefik.port=9222"
+      - "traefik.frontend.entryPoints=http"
     restart: on-failure
   vote-processor:
     build: 
