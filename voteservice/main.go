@@ -53,7 +53,7 @@ func (s *server) run() {
 		s.logger.Fatal(errEnvVarFail, zap.Error(err))
 	}
 
-	server := &http.Server{
+	srv := &http.Server{
 		Addr:    ":" + s.Port,
 		Handler: s.initRoutes(),
 	}
@@ -74,7 +74,7 @@ func (s *server) run() {
 	defer s.logger.Sync()
 	defer s.stanConn.Close()
 	s.logger.Info(listenMsg, zap.String("Port", s.Port))
-	s.logger.Fatal(errInterrupt, zap.Error(server.ListenAndServe()))
+	s.logger.Fatal(errInterrupt, zap.Error(srv.ListenAndServe()))
 }
 
 func (s *server) initRoutes() *mux.Router {
