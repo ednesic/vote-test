@@ -10,6 +10,7 @@ type DataAccessLayer interface {
 	Update(collName string, selector interface{}, update interface{}) error
 	Upsert(collName string, selector interface{}, update interface{}) error
 	Remove(collName string, selector interface{}) error
+	EnsureIndex(collName string, field string) error
 }
 
 type MongoDAL struct {
@@ -59,4 +60,17 @@ func (m *MongoDAL) Remove(collName string, selector interface{}) error {
 	defer session.Close()
 	err := session.DB(m.dbName).C(collName).Remove(selector)
 	return err
+}
+
+func (m *MongoDAL) EnsureIndex(collName string, field string) error {
+	session := m.session.Clone()
+	defer session.Close()
+	index := mgo.Index{
+        Key:    []string{field},
+        Unique: true,
+    }
+    if err := session.DB(m.dbName).C(collName).EnsureIndex(index); err != nil {
+        return err
+    }
+	return nil
 }

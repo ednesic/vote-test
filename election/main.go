@@ -27,7 +27,8 @@ const (
 	errUpsert              = "Failed to insert/update election"
 	errInterrupt           = "Shutting down"
 
-	listenMsg = "HTTP Sever listening"
+	listenMsg   = "HTTP Sever listening"
+	serviceName = "election"
 )
 
 type server struct {
@@ -63,6 +64,11 @@ func (s *server) run() {
 		s.logger.Fatal(errConnFail, zap.Error(err))
 	}
 
+	err = s.mgoDal.EnsureIndex(s.Collection, "id")
+	if err != nil {
+		s.logger.Fatal("err ensure index", zap.Error(err))
+	}
+
 	defer s.logger.Sync()
 	s.logger.Info(listenMsg, zap.String("Port", s.Port))
 	s.logger.Fatal(errInterrupt, zap.Error(srv.ListenAndServe()))
@@ -83,7 +89,7 @@ func (s *server) upsertElection(w http.ResponseWriter, r *http.Request) {
 		stsCode  = http.StatusCreated
 	)
 	defer func() {
-		defer s.logger.Info("upsert election", zap.Error(err), zap.Int32("Id", election.Id), zap.Int("StatusCode", http.StatusBadRequest))
+		defer s.logger.Info(http.MethodPut+serviceName, zap.Error(err), zap.Int32("Id", election.Id), zap.Int("StatusCode", stsCode))
 	}()
 
 	err = json.NewDecoder(r.Body).Decode(&election)
@@ -96,6 +102,7 @@ func (s *server) upsertElection(w http.ResponseWriter, r *http.Request) {
 	if election.Id == 0 {
 		stsCode = http.StatusBadRequest
 		http.Error(w, errInvalidElectionData, stsCode)
+		return
 	}
 
 	election.Inicio = ptypes.TimestampNow()
@@ -120,7 +127,7 @@ func (s *server) getElection(w http.ResponseWriter, r *http.Request) {
 		id       int64
 	)
 	defer func() {
-		defer s.logger.Info("get election", zap.Error(err), zap.Int32("Id", election.Id), zap.Int("StatusCode", stsCode))
+		defer s.logger.Info(http.MethodGet+serviceName, zap.Error(err), zap.Int32("Id", election.Id), zap.Int("StatusCode", stsCode))
 	}()
 
 	id, err = strconv.ParseInt(vars["id"], 10, 32)
@@ -130,7 +137,8 @@ func (s *server) getElection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.mgoDal.FindOne(s.Collection, bson.M{"id": id}, &election); err != nil {
+	err = s.mgoDal.FindOne(s.Collection, bson.M{"id": id}, &election)
+	if err != nil {
 		if err == mgo.ErrNotFound {
 			stsCode = http.StatusNotFound
 			http.Error(w, errNotFound, http.StatusNotFound)
@@ -155,7 +163,7 @@ func (s *server) deleteElection(w http.ResponseWriter, r *http.Request) {
 		id       int64
 	)
 	defer func() {
-		defer s.logger.Info("delete election", zap.Error(err), zap.Int32("Id", election.Id), zap.Int("StatusCode", stsCode))
+		defer s.logger.Info(http.MethodDelete+serviceName, zap.Error(err), zap.Int32("Id", election.Id), zap.Int("StatusCode", stsCode))
 	}()
 
 	id, err = strconv.ParseInt(vars["id"], 10, 32)

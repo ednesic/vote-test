@@ -29,3 +29,8 @@ func (m *DataAccessLayerMock) Remove(collName string, selector interface{}) erro
 	args := m.Called(collName, selector)
 	return args.Error(0)
 }
+
+func (m *DataAccessLayerMock) EnsureIndex(collName string, field string) error {
+	args := m.Called(collName, field)
+	return args.Error(0)
+}
