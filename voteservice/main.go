@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/ednesic/vote-test/pb"
 	"github.com/gogo/protobuf/proto"
@@ -18,10 +17,15 @@ import (
 const (
 	errEnvVarFail  = `Failed to get environment variables:`
 	errConnLost    = `Connection lost:`
+	errConnFailed  = `Connection failed`
 	errFailPubVote = `Failed to publish vote`
 	errInvalidData = `Invalid Vote Data`
 	errInvalidID   = `Invalid Id`
 	errInvalidUser = `Invalid User`
+	errInterrupt   = `Shutting down`
+
+	listenMsg     = "HTTP Sever listening"
+	voteCreateMsg = "POST vote creation"
 )
 
 type server struct {
@@ -38,6 +42,17 @@ type server struct {
 
 func (s *server) run() {
 	var err error
+
+	s.logger, err = zap.NewProduction()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = envconfig.Process("", s)
+	if err != nil {
+		s.logger.Fatal(errEnvVarFail, zap.Error(err))
+	}
+
 	server := &http.Server{
 		Addr:    ":" + s.Port,
 		Handler: s.initRoutes(),
@@ -49,62 +64,62 @@ func (s *server) run() {
 		stan.NatsURL(s.NatsServer),
 		stan.Pings(10, 5),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, reason error) {
-			log.Fatal(errConnLost, reason)
+			s.logger.Fatal(errConnLost, zap.Error(reason))
 		}),
 	)
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	s.logger, err = zap.NewProduction()
-	if err != nil {
-		log.Fatal(err)
+		s.logger.Fatal(errConnFailed, zap.Error(err))
 	}
 
 	defer s.logger.Sync()
 	defer s.stanConn.Close()
-	log.Println("HTTP Sever listening on " + s.Port)
-	log.Fatal(server.ListenAndServe())
+	s.logger.Info(listenMsg, zap.String("Port", s.Port))
+	s.logger.Fatal(errInterrupt, zap.Error(server.ListenAndServe()))
 }
 
 func (s *server) initRoutes() *mux.Router {
 	router := mux.NewRouter()
-	router.HandleFunc("/vote", s.createVote).Methods("POST")
+	router.HandleFunc("/vote", s.createVote).Methods(http.MethodPost)
 	return router
 }
 
 func (s *server) createVote(w http.ResponseWriter, r *http.Request) {
-	var vote pb.Vote
-	w.Header().Set("Content-Type", "application/json")
+	var (
+		err     error
+		vote    pb.Vote
+		stsCode = http.StatusCreated
+	)
+	defer func() {
+		defer s.logger.Info(voteCreateMsg, zap.Error(err), zap.Int32("electionId", vote.ElectionId), zap.String("User", vote.User), zap.Int("StatusCode", stsCode))
+	}()
 
-	err := json.NewDecoder(r.Body).Decode(&vote)
+	err = json.NewDecoder(r.Body).Decode(&vote)
 	if err != nil {
-		http.Error(w, errInvalidData, http.StatusBadRequest)
-		defer s.logger.Error(errInvalidData, zap.Int32("electionId", vote.ElectionId), zap.String("User", vote.User), zap.Int("StatusCode", http.StatusBadRequest), zap.String("hostname", os.Getenv("HOSTNAME")))
+		stsCode = http.StatusBadRequest
+		http.Error(w, errInvalidData, stsCode)
 		return
 	}
 	if vote.GetElectionId() <= 0 {
-		http.Error(w, errInvalidID, http.StatusBadRequest)
-		defer s.logger.Error(errInvalidID, zap.Int32("electionId", vote.ElectionId), zap.String("User", vote.User), zap.Int("StatusCode", http.StatusBadRequest), zap.String("hostname", os.Getenv("HOSTNAME")))
+		stsCode = http.StatusBadRequest
+		http.Error(w, errInvalidID, stsCode)
 		return
 	}
 	if vote.GetUser() == "" {
-		http.Error(w, errInvalidUser, http.StatusBadRequest)
-		defer s.logger.Error(errInvalidUser, zap.Int32("electionId", vote.ElectionId), zap.String("User", vote.User), zap.Int("StatusCode", http.StatusBadRequest), zap.String("hostname", os.Getenv("HOSTNAME")))
+		stsCode = http.StatusBadRequest
+		http.Error(w, errInvalidUser, stsCode)
 		return
 	}
 
 	err = s.publishEvent(&vote)
 	if err != nil {
-		http.Error(w, errFailPubVote, http.StatusInternalServerError)
-		defer s.logger.Error(errFailPubVote, zap.Int32("electionId", vote.ElectionId), zap.String("User", vote.User), zap.Int("StatusCode", http.StatusInternalServerError), zap.String("hostname", os.Getenv("HOSTNAME")))
+		stsCode = http.StatusInternalServerError
+		http.Error(w, errFailPubVote, stsCode)
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(stsCode)
 	j, _ := json.Marshal(vote)
 	w.Write(j)
-	defer s.logger.Info("Vote Created", zap.Int32("electionId", vote.ElectionId), zap.String("User", vote.User), zap.Int("StatusCode", http.StatusCreated), zap.String("hostname", os.Getenv("HOSTNAME")))
 }
 
 func (s *server) publishEvent(vote *pb.Vote) error {
@@ -117,9 +132,5 @@ func (s *server) publishEvent(vote *pb.Vote) error {
 
 func main() {
 	var s server
-	err := envconfig.Process("", &s)
-	if err != nil {
-		log.Fatal(errEnvVarFail, err.Error())
-	}
 	s.run()
 }

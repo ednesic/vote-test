@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ednesic/vote-test/db"
@@ -72,10 +73,12 @@ func Test_getElectionEnd(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			if tt.errorReply != nil {
-				gock.New(server + "/election/" + string(tt.id)).
+				gock.New(server).
+					Get("/election/" + fmt.Sprint(tt.id)).
 					ReplyError(tt.errorReply)
 			} else {
-				gock.New(server + "/election/" + string(tt.id)).
+				gock.New(server).
+					Get("/election/" + fmt.Sprint(tt.id)).
 					Reply(tt.reply).
 					BodyString(tt.jsonRes)
 			}
