@@ -86,9 +86,9 @@ services:
       - ./fluentd/conf:/fluentd/etc
 
   elasticsearch:
-    image: elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.4.1
 
   kibana:
-    image: kibana
+    image: docker.elastic.co/kibana/kibana:6.4.1
     ports:
       - "5601:5601"
