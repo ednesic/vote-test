@@ -16,7 +16,7 @@ import (
 	mgo "gopkg.in/mgo.v2"
 )
 
-func Test_server_upsertElection(t *testing.T) {
+func Test_server_upsert(t *testing.T) {
 	mgoDal := &tests.DataAccessLayerMock{}
 	log, _ := zap.NewProduction()
 
@@ -42,7 +42,7 @@ func Test_server_upsertElection(t *testing.T) {
 			req, err := http.NewRequest("PUT", "localhost:9223/election", strings.NewReader(tt.body))
 			assert.Nil(t, err, "could not create request")
 			rec := httptest.NewRecorder()
-			s.upsertElection(rec, req)
+			s.upsert(rec, req)
 			res := rec.Result()
 			defer res.Body.Close()
 			fmt.Println(rec.Body.String())
@@ -52,7 +52,7 @@ func Test_server_upsertElection(t *testing.T) {
 	}
 }
 
-func Test_server_getElection(t *testing.T) {
+func Test_server_get(t *testing.T) {
 	mgoDal := &tests.DataAccessLayerMock{}
 	log, _ := zap.NewProduction()
 
@@ -85,7 +85,7 @@ func Test_server_getElection(t *testing.T) {
 			}
 			req = mux.SetURLVars(req, vars)
 
-			s.getElection(rec, req)
+			s.get(rec, req)
 			res := rec.Result()
 			defer res.Body.Close()
 			fmt.Println(rec.Body.String())
@@ -95,7 +95,7 @@ func Test_server_getElection(t *testing.T) {
 	}
 }
 
-func Test_server_deleteElection(t *testing.T) {
+func Test_server_delete(t *testing.T) {
 	mgoDal := &tests.DataAccessLayerMock{}
 	log, _ := zap.NewProduction()
 
@@ -127,7 +127,7 @@ func Test_server_deleteElection(t *testing.T) {
 			}
 			req = mux.SetURLVars(req, vars)
 
-			s.deleteElection(rec, req)
+			s.delete(rec, req)
 			res := rec.Result()
 			defer res.Body.Close()
 			fmt.Println(rec.Body.String())
