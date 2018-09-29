@@ -17,6 +17,7 @@ services:
       - commons.env
     depends_on:
       - mongo
+      - fluentd
     labels:
       - "traefik.backend=election-service"
       - "traefik.frontend.rule=PathPrefix: /election"
@@ -26,7 +27,7 @@ services:
     logging:
       driver: "fluentd"
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: localhost:24224
         tag: election.access
 
   vote-service:
@@ -38,6 +39,7 @@ services:
     depends_on:
       - stan
       - mongo
+      - fluentd
     labels:
       - "traefik.backend=vote-service"
       - "traefik.frontend.rule=PathPrefix: /vote"
@@ -47,7 +49,7 @@ services:
     logging:
       driver: "fluentd"
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: localhost:24224
         tag: vote-service.access
 
   vote-processor:
@@ -59,11 +61,12 @@ services:
     depends_on:
       - stan
       - mongo
+      - fluentd
     restart: on-failure
     logging:
       driver: "fluentd"
       options:
-        fluentd-address: fluentd:24224
+        fluentd-address: localhost:24224
         tag: vote-processor.access
 
   stan:
@@ -76,8 +79,11 @@ services:
 
   fluentd:
     build: ./fluentd
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
     volumes:
-      - ./fluentd:/fluentd/etc
+      - ./fluentd/conf:/fluentd/etc
 
   elasticsearch:
     image: elasticsearch
