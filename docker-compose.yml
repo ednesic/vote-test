@@ -8,6 +8,7 @@ services:
       - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+
   election-service:
     build:
       context: ./election
@@ -22,6 +23,12 @@ services:
       - "traefik.port=9223"
       - "traefik.frontend.entryPoints=http"
     restart: on-failure
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: fluentd:24224
+        tag: election.access
+
   vote-service:
     build:
       context: ./voteservice
@@ -37,6 +44,12 @@ services:
       - "traefik.port=9222"
       - "traefik.frontend.entryPoints=http"
     restart: on-failure
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: fluentd:24224
+        tag: vote-service.access
+
   vote-processor:
     build: 
       context: ./voteprocessor
@@ -47,9 +60,29 @@ services:
       - stan
       - mongo
     restart: on-failure
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: fluentd:24224
+        tag: vote-processor.access
+
   stan:
     image: nats-streaming
     restart: on-failure
+
   mongo:
     image: mongo
     restart: on-failure
+
+  fluentd:
+    build: ./fluentd
+    volumes:
+      - ./fluentd:/fluentd/etc
+
+  elasticsearch:
+    image: elasticsearch
+
+  kibana:
+    image: kibana
+    ports:
+      - "5601:5601"
