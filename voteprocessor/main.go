@@ -1,20 +1,16 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"runtime"
-	"time"
 
 	"github.com/ednesic/vote-test/db"
 	"github.com/ednesic/vote-test/pb"
 	"github.com/gogo/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/nats-io/go-nats-streaming"
 	"github.com/nats-io/nuid"
@@ -101,7 +97,7 @@ func (s *spec) procVote(msg *stan.Msg) {
 		v   pb.Vote
 	)
 	defer func() {
-		s.logger.Info(voteProcessed, zap.Error(err), zap.Int32("electionId", v.ElectionId), zap.String("User", v.User))
+		s.logger.Info(voteProcessed, zap.Error(err), zap.Int32("electionId", v.ElectionId), zap.String("User", v.GetCandidate()))
 	}()
 
 	err = proto.Unmarshal(msg.Data, &v)
@@ -109,50 +105,31 @@ func (s *spec) procVote(msg *stan.Msg) {
 		return
 	}
 
-	end, err := getElectionEnd(s.ElectionService, v.ElectionId)
+	err = validateVote(s.ElectionService, v)
 	if err != nil {
-		return
-	}
-
-	if isElectionOver(end) {
-		err = errors.New(errElectionEnded)
 		return
 	}
 
 	err = vote(s.mgoDal, s.Coll, &v)
 }
 
-func getElectionEnd(serviceName string, id int32) (*timestamp.Timestamp, error) {
-	var e pb.Election
-	resp, err := http.Get(serviceName + "/election/" + fmt.Sprint(id))
+func validateVote(serviceName string, vote pb.Vote) error {
+	resp, err := http.Get(serviceName + "/election/" + fmt.Sprint(vote.GetElectionId()) + "valid?candidate=" + vote.GetCandidate())
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(string(body))
+		return errors.New(string(body))
 	}
 
-	err = json.Unmarshal(body, &e)
-	if err != nil {
-		return nil, err
-	}
-
-	return e.End, nil
-}
-
-func isElectionOver(end *timestamp.Timestamp) bool {
-	t, err := ptypes.Timestamp(end)
-	if err != nil {
-		return true
-	}
-	return time.Now().After(t)
+	return nil
 }
 
 func vote(dal db.DataAccessLayer, coll string, vote *pb.Vote) error {

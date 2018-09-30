@@ -9,8 +9,6 @@ import (
 	"github.com/ednesic/vote-test/db"
 	"github.com/ednesic/vote-test/pb"
 	"github.com/ednesic/vote-test/tests"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	gock "gopkg.in/h2non/gock.v1"
@@ -94,37 +92,6 @@ func Test_getElectionEnd(t *testing.T) {
 
 			assert.NotNil(t, err)
 			assert.Contains(t, err.Error(), tt.err)
-		})
-	}
-}
-
-func Test_isElectionOver(t *testing.T) {
-	tbefore := ptypes.TimestampNow()
-	tafter := ptypes.TimestampNow()
-	tinvalid := ptypes.TimestampNow()
-
-	tbefore.Seconds = tbefore.GetSeconds() - 1000
-	tafter.Seconds = tafter.GetSeconds() + 1000
-	tinvalid.Seconds = -1000
-	tinvalid.Nanos = -1000
-
-	type args struct {
-		end *timestamp.Timestamp
-	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{"Time before now", args{end: tbefore}, true},
-		{"Time after now", args{end: tafter}, false},
-		{"Invalid time", args{end: tinvalid}, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := isElectionOver(tt.args.end); got != tt.want {
-				t.Errorf("isElectionOver() = %v, want %v", got, tt.want)
-			}
 		})
 	}
 }

@@ -2,13 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/ednesic/vote-test/db"
 	"github.com/ednesic/vote-test/pb"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/gorilla/mux"
 	"github.com/kelseyhightower/envconfig"
 	"go.uber.org/zap"
@@ -41,12 +44,18 @@ type server struct {
 	Collection string `envconfig:"COLLECTION" default:"election"`
 	MgoURL     string `envconfig:"MONGO_URL" default:"localhost:27017"`
 
+	isOver            func(end *timestamp.Timestamp) bool
+	containsCandidate func(candidate string, candidates []string) bool
+
 	mgoDal db.DataAccessLayer
 	logger *zap.Logger
 }
 
 func (s *server) run() {
 	var err error
+
+	s.isOver = isOver
+	s.containsCandidate = containsCandidate
 
 	s.logger, err = zap.NewProduction()
 	if err != nil {
@@ -81,7 +90,8 @@ func (s *server) run() {
 func (s *server) initRoutes() *mux.Router {
 	router := mux.NewRouter()
 	router.HandleFunc("/"+serviceName, s.upsert).Methods(http.MethodPut)
-	router.HandleFunc("/"+serviceName+"/{"+elecIDKey+"}", s.get).Methods(http.MethodGet)
+	router.HandleFunc("/"+serviceName+"/{"+elecIDKey+"}/validate", s.valid).Queries("candidate", "{candidate}").Methods(http.MethodGet)
+	router.HandleFunc("/"+serviceName+"/{"+elecIDKey+"}/validate", s.valid).Methods(http.MethodGet)
 	router.HandleFunc("/"+serviceName+"/{"+elecIDKey+"}", s.delete).Methods(http.MethodDelete)
 	return router
 }
@@ -93,7 +103,7 @@ func (s *server) upsert(w http.ResponseWriter, r *http.Request) {
 		stsCode  = http.StatusCreated
 	)
 	defer func() {
-		defer s.logger.Info(http.MethodPut+serviceName, zap.Error(err), zap.Int32(elecIDKey, election.Id), zap.Int(stsCodeKey, stsCode))
+		defer s.logger.Info(http.MethodPut+serviceName, zap.Error(err), zap.Int32(elecIDKey, election.GetId()), zap.Int(stsCodeKey, stsCode))
 	}()
 
 	err = json.NewDecoder(r.Body).Decode(&election)
@@ -103,14 +113,14 @@ func (s *server) upsert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if election.Id == 0 {
+	if election.GetId() == 0 || len(election.GetCandidates()) == 0 {
 		stsCode = http.StatusBadRequest
 		http.Error(w, errInvalidData, stsCode)
 		return
 	}
 
 	election.Start = ptypes.TimestampNow()
-	err = s.mgoDal.Upsert(s.Collection, bson.M{elecIDKey: election.Id}, &election)
+	err = s.mgoDal.Upsert(s.Collection, bson.M{elecIDKey: election.GetId()}, &election)
 	if err != nil {
 		stsCode = http.StatusInternalServerError
 		http.Error(w, errUpsert, stsCode)
@@ -122,7 +132,7 @@ func (s *server) upsert(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func (s *server) get(w http.ResponseWriter, r *http.Request) {
+func (s *server) valid(w http.ResponseWriter, r *http.Request) {
 	var (
 		err      error
 		election pb.Election
@@ -131,7 +141,7 @@ func (s *server) get(w http.ResponseWriter, r *http.Request) {
 		id       int64
 	)
 	defer func() {
-		defer s.logger.Info(http.MethodGet+serviceName, zap.Error(err), zap.Int32(elecIDKey, election.Id), zap.Int(stsCodeKey, stsCode))
+		defer s.logger.Info(http.MethodGet+serviceName, zap.Error(err), zap.Int32(elecIDKey, election.GetId()), zap.Int(stsCodeKey, stsCode))
 	}()
 
 	id, err = strconv.ParseInt(vars[elecIDKey], 10, 32)
@@ -153,6 +163,19 @@ func (s *server) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.isOver(election.GetEnd()) {
+		stsCode = http.StatusGone
+		http.Error(w, "election is over", http.StatusGone)
+		return
+	}
+
+	key := r.FormValue("candidate")
+	if key != "" && !s.containsCandidate(key, election.GetCandidates()) {
+		stsCode = http.StatusBadRequest
+		http.Error(w, "candidate not found", http.StatusBadRequest)
+		return
+	}
+
 	w.WriteHeader(stsCode)
 	j, _ := json.Marshal(election)
 	w.Write(j)
@@ -167,7 +190,7 @@ func (s *server) delete(w http.ResponseWriter, r *http.Request) {
 		id       int64
 	)
 	defer func() {
-		defer s.logger.Info(http.MethodDelete+serviceName, zap.Error(err), zap.Int32(elecIDKey, election.Id), zap.Int(stsCodeKey, stsCode))
+		defer s.logger.Info(http.MethodDelete+serviceName, zap.Error(err), zap.Int32(elecIDKey, election.GetId()), zap.Int(stsCodeKey, stsCode))
 	}()
 
 	id, err = strconv.ParseInt(vars[elecIDKey], 10, 32)
@@ -185,6 +208,25 @@ func (s *server) delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(stsCode)
+}
+
+// todo: refactor isOver containsCandidate
+func isOver(end *timestamp.Timestamp) bool {
+	t, err := ptypes.Timestamp(end)
+	if err != nil {
+		fmt.Println(err)
+		return true
+	}
+	return time.Now().After(t)
+}
+
+func containsCandidate(candidate string, candidates []string) bool {
+	for _, c := range candidates {
+		if c == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 func main() {

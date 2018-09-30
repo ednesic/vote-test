@@ -90,7 +90,7 @@ func (s *server) createVote(w http.ResponseWriter, r *http.Request) {
 		stsCode = http.StatusCreated
 	)
 	defer func() {
-		defer s.logger.Info(voteCreateMsg, zap.Error(err), zap.Int32("electionId", vote.ElectionId), zap.String("User", vote.User), zap.Int("StatusCode", stsCode))
+		defer s.logger.Info(voteCreateMsg, zap.Error(err), zap.Int32("electionId", vote.GetElectionId()), zap.String("User", vote.GetCandidate()), zap.Int("StatusCode", stsCode))
 	}()
 
 	err = json.NewDecoder(r.Body).Decode(&vote)
@@ -104,7 +104,7 @@ func (s *server) createVote(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errInvalidID, stsCode)
 		return
 	}
-	if vote.GetUser() == "" {
+	if vote.GetCandidate() == "" {
 		stsCode = http.StatusBadRequest
 		http.Error(w, errInvalidUser, stsCode)
 		return
