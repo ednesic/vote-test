@@ -5,6 +5,7 @@ import "google/protobuf/timestamp.proto";
 
 message Election {
     int32 id = 1;
-    google.protobuf.Timestamp inicio = 2;
-    google.protobuf.Timestamp termino = 3;
+    google.protobuf.Timestamp start = 2;
+    google.protobuf.Timestamp end = 3;
+    repeated string candidates = 4;
 }

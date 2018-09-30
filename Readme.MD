@@ -1,6 +1,6 @@
 docker-compose up
 
 todo
-- get votes
+- get votes (Adicionar candidatos)
 - scale
 - kube

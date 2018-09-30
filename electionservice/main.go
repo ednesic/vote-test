@@ -109,7 +109,7 @@ func (s *server) upsert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	election.Inicio = ptypes.TimestampNow()
+	election.Start = ptypes.TimestampNow()
 	err = s.mgoDal.Upsert(s.Collection, bson.M{elecIDKey: election.Id}, &election)
 	if err != nil {
 		stsCode = http.StatusInternalServerError

@@ -144,7 +144,7 @@ func getElectionEnd(serviceName string, id int32) (*timestamp.Timestamp, error) 
 		return nil, err
 	}
 
-	return e.Termino, nil
+	return e.End, nil
 }
 
 func isElectionOver(end *timestamp.Timestamp) bool {

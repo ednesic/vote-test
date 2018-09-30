@@ -88,7 +88,7 @@ func Test_getElectionEnd(t *testing.T) {
 				var e pb.Election
 				json.Unmarshal([]byte(tt.jsonRes), &e)
 				assert.Nil(t, err)
-				assert.Equal(t, termino, e.Termino)
+				assert.Equal(t, termino, e.End)
 				return
 			}
 
