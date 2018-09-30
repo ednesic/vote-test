@@ -11,7 +11,7 @@ services:
 
   election-service:
     build:
-      context: ./election
+      context: ./electionservice
       dockerfile: ../Dockerfile
     env_file:
       - commons.env
