@@ -82,6 +82,8 @@ services:
     ports:
       - "24224:24224"
       - "24224:24224/udp"
+    depends_on:
+      - elasticsearch
     volumes:
       - ./fluentd/conf:/fluentd/etc
 

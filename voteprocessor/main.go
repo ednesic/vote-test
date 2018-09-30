@@ -42,7 +42,7 @@ type spec struct {
 	DurableID       string `envconfig:"DURABLE_ID" default:"vote-processor"`
 	QueueGroup      string `envconfig:"QUEUE_GROUP" default:"vote-processor"`
 	MgoURL          string `envconfig:"MONGO_URL" default:"localhost:27017"`
-	Coll            string `envconfig:"COLLECTION" default:"election"`
+	Coll            string `envconfig:"COLLECTION" default:"vote"`
 	Database        string `envconfig:"DATABASE" default:"elections"`
 	ElectionService string `envconfig:"ELECTION_SERVICE" default:"http://localhost:9223"`
 
