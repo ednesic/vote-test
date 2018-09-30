@@ -105,7 +105,7 @@ func (s *spec) procVote(msg *stan.Msg) {
 		return
 	}
 
-	err = validateVote(s.ElectionService, v)
+	err = validateVote(s.ElectionService, &v)
 	if err != nil {
 		return
 	}
@@ -113,8 +113,8 @@ func (s *spec) procVote(msg *stan.Msg) {
 	err = vote(s.mgoDal, s.Coll, &v)
 }
 
-func validateVote(serviceName string, vote pb.Vote) error {
-	resp, err := http.Get(serviceName + "/election/" + fmt.Sprint(vote.GetElectionId()) + "valid?candidate=" + vote.GetCandidate())
+func validateVote(serviceName string, vote *pb.Vote) error {
+	resp, err := http.Get(serviceName + "/election/" + fmt.Sprint(vote.GetElectionId()) + "/validate?candidate=" + vote.GetCandidate())
 	if err != nil {
 		return err
 	}

@@ -1,9 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/ednesic/vote-test/db"
@@ -17,38 +17,6 @@ import (
 
 var Server dbtest.DBServer
 
-// func Example_procVote_election_not_found() {
-// 	var s spec
-// 	mgoDal := &tests.DataAccessLayerMock{}
-// 	s.mgoDal = mgoDal
-// 	mgoDal.On("FindOne", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("Not found")).Once()
-
-// 	msg := &stan.Msg{}
-// 	m, _ := proto.Marshal(&pb.Vote{ElectionId: 2, User: "Test2"})
-// 	msg.Data = m
-// 	err := msg.Unmarshal(m)
-// 	if err != nil {
-// 		log.Fatal("fail")
-// 	}
-// 	s.procVote(msg)
-// 	// Output: Could not get election: Not found
-// }
-
-// func Example_procVote_fail_unmarshal() {
-// 	var s spec
-// 	mgoDal := &tests.DataAccessLayerMock{}
-// 	s.mgoDal = mgoDal
-// 	mgoDal.On("Insert", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-// 	mgoDal.On("FindOne", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-
-// 	msg := &stan.Msg{}
-// 	msg.Unmarshal([]byte("test"))
-// 	msg.Data = []byte("eee")
-// 	s.procVote(msg)
-// 	// Output:
-// 	// Failed to process vote unexpected EOF
-// }
-
 func Test_getElectionEnd(t *testing.T) {
 	const server = "http://localhost"
 	defer gock.Off()
@@ -57,41 +25,34 @@ func Test_getElectionEnd(t *testing.T) {
 		name       string
 		reply      int
 		errorReply error
-		jsonRes    string
-		wantErr    bool
-		err        string
+		candidate  string
 		id         int32
+		wantErr    bool
 	}{
-		{"Election termination found", 200, nil, `{"id": 1, "termino": { "seconds": 1536525322 }}`, false, "", 1},
-		{"Error on get", 500, errors.New("fail on get"), "nil", true, "fail on get", 2},
-		{"Election not ok", 404, nil, "election not found", true, "election not found", 4},
-		{"Election unmarshal error", 200, nil, `{city: 3, "termino": { "seconds": 1536525322 }}`, true, "invalid character", 5},
+		{"Request error", 0, errors.New("Error request"), "candidateMock1", 1, true},
+		{"Request Ok", http.StatusOK, nil, "candidateMock1", 1, false},
+		{"Request fail", http.StatusGone, nil, "candidateMock1", 1, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
 			if tt.errorReply != nil {
 				gock.New(server).
-					Get("/election/" + fmt.Sprint(tt.id)).
+					Get("/election/"+fmt.Sprint(tt.id)+"/validate").
+					MatchParam("candidate", tt.candidate).
 					ReplyError(tt.errorReply)
 			} else {
 				gock.New(server).
-					Get("/election/" + fmt.Sprint(tt.id)).
-					Reply(tt.reply).
-					BodyString(tt.jsonRes)
+					Get("/election/"+fmt.Sprint(tt.id)+"/validate").
+					MatchParam("candidate", tt.candidate).
+					Reply(tt.reply)
 			}
-
-			termino, err := getElectionEnd(server, tt.id)
-			if !tt.wantErr {
-				var e pb.Election
-				json.Unmarshal([]byte(tt.jsonRes), &e)
+			err := validateVote(server, &pb.Vote{Candidate: tt.candidate, ElectionId: tt.id})
+			if tt.wantErr {
+				assert.NotNil(t, err)
+			} else {
 				assert.Nil(t, err)
-				assert.Equal(t, termino, e.End)
-				return
 			}
-
-			assert.NotNil(t, err)
-			assert.Contains(t, err.Error(), tt.err)
 		})
 	}
 }
@@ -121,89 +82,3 @@ func Test_vote(t *testing.T) {
 		})
 	}
 }
-
-/*******************************************/
-/** Tests that must have mongod installed **/
-/*******************************************/
-
-// func Example_spec_procVote_full() {
-// 	cmd := exec.Command("mongod", "-version")
-// 	if cmd.Run() != nil {
-// 		log.Printf("Mongod is not installed.")
-// 		return
-// 	}
-
-// 	var s spec
-// 	s.Database = "test"
-// 	s.Coll = "test1"
-
-// 	tafter := ptypes.TimestampNow()
-
-// 	tafter.Seconds = tafter.GetSeconds() + 1000
-
-// 	tempDir, _ := ioutil.TempDir("", "testing")
-// 	Server.SetPath(tempDir)
-// 	mockSession := Server.Session()
-
-// 	mockSession.DB(s.Database).C(s.Coll).Insert(&pb.Election{Id: 1, Inicio: tafter, Termino: tafter})
-
-// 	mgoDal, err := db.NewMongoDAL(mockSession.LiveServers()[0], s.Database)
-// 	if err != nil {
-// 		log.Fatal("Failed to create mongo mock session")
-// 	}
-// 	s.mgoDal = mgoDal
-
-// 	msg := &stan.Msg{}
-// 	m, _ := proto.Marshal(&pb.Vote{ElectionId: 1, User: "test"})
-// 	msg.Data = m
-// 	err = msg.Unmarshal(m)
-// 	if err != nil {
-// 		log.Fatal("Failed to unmarshal message")
-// 	}
-// 	s.procVote(msg)
-// 	// Output:
-
-// 	mockSession.Close()
-// }
-
-// func Example_spec_procVote_election_ended() {
-// 	cmd := exec.Command("mongod", "-version")
-// 	err := cmd.Run()
-
-// 	if err != nil {
-// 		log.Printf("Mongod is not installed.")
-// 		return
-// 	}
-
-// 	var s spec
-// 	s.Database = "test"
-// 	s.Coll = "test1"
-
-// 	tbefore := ptypes.TimestampNow()
-
-// 	tbefore.Seconds = tbefore.GetSeconds() - 10000
-
-// 	tempDir, _ := ioutil.TempDir("", "testing")
-// 	Server.SetPath(tempDir)
-// 	mockSession := Server.Session()
-
-// 	mockSession.DB(s.Database).C(s.Coll).Insert(&pb.Election{Id: 2, Inicio: tbefore, Termino: tbefore})
-
-// 	mgoDal, err := db.NewMongoDAL(mockSession.LiveServers()[0], s.Database)
-// 	if err != nil {
-// 		log.Fatal("Failed to create mongo mock session")
-// 	}
-// 	s.mgoDal = mgoDal
-
-// 	msg := &stan.Msg{}
-// 	m, _ := proto.Marshal(&pb.Vote{ElectionId: 2, User: "test"})
-// 	msg.Data = m
-// 	err = msg.Unmarshal(m)
-// 	if err != nil {
-// 		log.Fatal("Failed to unmarshal message")
-// 	}
-// 	s.procVote(msg)
-// 	// Output: Election has ended
-
-// 	mockSession.Close()
-// }

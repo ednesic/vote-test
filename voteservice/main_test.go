@@ -27,12 +27,12 @@ func Test_server_publishEvent(t *testing.T) {
 		wantErr bool
 	}{
 		{"Empty vote", args{&pb.Vote{}}, false},
-		{"Empty user on vote", args{&pb.Vote{User: "", ElectionId: 12}}, false},
-		{"Empty id on vote", args{&pb.Vote{User: "1", ElectionId: 0}}, false},
-		{"Normal vote", args{&pb.Vote{User: "1", ElectionId: 90}}, false},
-		{"Negative id on vote", args{&pb.Vote{User: "1", ElectionId: -1}}, false},
-		{"High value on vote", args{&pb.Vote{User: "1", ElectionId: 1000000000}}, false},
-		{"Big string on vote", args{&pb.Vote{User: "sdgnasodgsdgsino", ElectionId: 1}}, false},
+		{"Empty user on vote", args{&pb.Vote{Candidate: "", ElectionId: 12}}, false},
+		{"Empty id on vote", args{&pb.Vote{Candidate: "1", ElectionId: 0}}, false},
+		{"Normal vote", args{&pb.Vote{Candidate: "1", ElectionId: 90}}, false},
+		{"Negative id on vote", args{&pb.Vote{Candidate: "1", ElectionId: -1}}, false},
+		{"High value on vote", args{&pb.Vote{Candidate: "1", ElectionId: 1000000000}}, false},
+		{"Big string on vote", args{&pb.Vote{Candidate: "sdgnasodgsdgsino", ElectionId: 1}}, false},
 		{"Nil vote must fail", args{nil}, true},
 	}
 	for _, tt := range tests {
@@ -56,14 +56,14 @@ func Test_server_createVote(t *testing.T) {
 		responseBody string
 		pubRes       error
 	}{
-		{"Could not process message", `{"electionId":12,"user":"abc"}`, http.StatusInternalServerError, errFailPubVote, errors.New("err")},
-		{"Creation successful", `{"electionId":12,"user":"abc"}`, http.StatusCreated, `{"ElectionId":12,"user":"abc"}`, nil},
+		{"Could not process message", `{"electionId":12,"candidate":"abc"}`, http.StatusInternalServerError, errFailPubVote, errors.New("err")},
+		{"Creation successful", `{"electionId":12,"candidate":"abc"}`, http.StatusCreated, `{"ElectionId":12,"candidate":"abc"}`, nil},
 		{"Wrong user type", `{"electionId":"12"}`, http.StatusBadRequest, errInvalidData, nil},
-		{"Wrong id type", `{"user":12}`, http.StatusBadRequest, errInvalidData, nil},
+		{"Wrong id type", `{"candidate":12}`, http.StatusBadRequest, errInvalidData, nil},
 		{"Missing user", `{"electionId":12}`, http.StatusBadRequest, errInvalidUser, nil},
-		{"Missing id", `{"user":"abc"}`, http.StatusBadRequest, errInvalidID, nil},
+		{"Missing id", `{"candidate":"abc"}`, http.StatusBadRequest, errInvalidID, nil},
 		{"Missing all", `{}`, http.StatusBadRequest, errInvalidID, nil},
-		{"Wrong parameters", `{"electionId":12,"user":"abc","Home: 5"}`, http.StatusBadRequest, errInvalidData, nil},
+		{"Wrong parameters", `{"electionId":12,"candidate":"abc","Home: 5"}`, http.StatusBadRequest, errInvalidData, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
