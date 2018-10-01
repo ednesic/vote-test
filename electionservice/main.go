@@ -103,7 +103,7 @@ func (s *server) upsert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if election.Id == 0 {
+	if election.Id == 0 || len(election.Candidates) == 0 {
 		stsCode = http.StatusBadRequest
 		http.Error(w, errInvalidData, stsCode)
 		return

@@ -26,9 +26,10 @@ func Test_server_upsert(t *testing.T) {
 		statusCode int
 		queryRet   error
 	}{
-		{"Create Election", `{"id": 3, "termino": { "seconds": 1536525322 }}`, http.StatusCreated, nil},
-		{"Upsert function do not work", `{"id": 3, "termino": { "seconds": 1536525322 }}`, http.StatusInternalServerError, errors.New("Upsert fail")},
-		{"Id = 0", `{"id": 0, "termino": { "seconds": 1536525322 }}`, http.StatusBadRequest, nil},
+		{"Create Election", `{"id": 3, "Candidates": ["test1"], "End": { "seconds": 1536525322 }}`, http.StatusCreated, nil},
+		{"Upsert function do not work", `{"id": 3, "Candidates": ["test1"], "End": { "seconds": 1536525322 }}`, http.StatusInternalServerError, errors.New("Upsert fail")},
+		{"Without candidates", `{"id": 3, "End": { "seconds": 1536525322 }}`, http.StatusBadRequest, nil},
+		{"Id = 0", `{"id": 0, "Candidates": ["test1"], "End": { "seconds": 1536525322 }}`, http.StatusBadRequest, nil},
 		{"Invalid payload", ``, http.StatusBadRequest, nil},
 	}
 	for _, tt := range tests {

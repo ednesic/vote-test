@@ -4,8 +4,8 @@ option go_package="pb";
 import "google/protobuf/timestamp.proto";
 
 message Election {
-    int32 id = 1;
-    google.protobuf.Timestamp start = 2;
-    google.protobuf.Timestamp end = 3;
-    repeated string candidates = 4;
+    int32 Id = 1;
+    google.protobuf.Timestamp Start = 2;
+    google.protobuf.Timestamp End = 3;
+    repeated string Candidates = 4;
 }

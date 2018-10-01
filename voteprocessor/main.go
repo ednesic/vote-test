@@ -101,7 +101,7 @@ func (s *spec) procVote(msg *stan.Msg) {
 		v   pb.Vote
 	)
 	defer func() {
-		s.logger.Info(voteProcessed, zap.Error(err), zap.Int32("electionId", v.ElectionId), zap.String("User", v.User))
+		s.logger.Info(voteProcessed, zap.Error(err), zap.Int32("ElectionId", v.GetElectionId()), zap.String("Candidate", v.GetCandidate()))
 	}()
 
 	err = proto.Unmarshal(msg.Data, &v)
@@ -109,7 +109,7 @@ func (s *spec) procVote(msg *stan.Msg) {
 		return
 	}
 
-	end, err := getElectionEnd(s.ElectionService, v.ElectionId)
+	end, err := getElectionEnd(s.ElectionService, v.GetElectionId())
 	if err != nil {
 		return
 	}
