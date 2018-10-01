@@ -29,6 +29,7 @@ const (
 	errParseTimestamp   = "Failed to parse timestamp"
 	errElectionNotFound = "Could not get election:"
 	errElectionEnded    = "Election has ended"
+	errCandidateNotFound = "Candidate not found"
 
 	voteProcessed   = "Vote processed"
 	initVoteProcMsg = "Processor running"
@@ -117,7 +118,7 @@ func (s *spec) procVote(msg *stan.Msg) {
 	err = vote(s.mgoDal, s.Coll, &v)
 }
 
-func verifyElection(serviceName string, vote *pb.Vote) error {
+var verifyElection = func(serviceName string, vote *pb.Vote) error {
 	var e pb.Election
 	resp, err := http.Get(serviceName + "/election/" + fmt.Sprint(vote.GetElectionId()))
 	if err != nil {
@@ -134,7 +135,8 @@ func verifyElection(serviceName string, vote *pb.Vote) error {
 		return errors.New(string(body))
 	}
 
-	if json.Unmarshal(body, &e) != nil {
+	err = json.Unmarshal(body, &e)
+	if err != nil {
 		return err
 	}
 
@@ -143,13 +145,13 @@ func verifyElection(serviceName string, vote *pb.Vote) error {
 	}
 
 	if !containsString(vote.Candidate, e.Candidates) {
-		return errors.New("candidate not found")
+		return errors.New(errCandidateNotFound)
 	}
 
 	return nil
 }
 
-func containsString(s string, arrs []string) bool {
+var containsString = func(s string, arrs []string) bool {
 	for _, a := range arrs {
 		if a == s {
 			return true
@@ -158,7 +160,7 @@ func containsString(s string, arrs []string) bool {
 	return false
 }
 
-func isElectionOver(end *timestamp.Timestamp) bool {
+var isElectionOver = func(end *timestamp.Timestamp) bool {
 	t, err := ptypes.Timestamp(end)
 	if err != nil {
 		return true
@@ -166,6 +168,6 @@ func isElectionOver(end *timestamp.Timestamp) bool {
 	return time.Now().After(t)
 }
 
-func vote(dal db.DataAccessLayer, coll string, vote *pb.Vote) error {
+var vote = func(dal db.DataAccessLayer, coll string, vote *pb.Vote) error {
 	return dal.Insert(coll, &vote)
 }

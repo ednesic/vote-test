@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ednesic/vote-test/db"
@@ -9,58 +10,13 @@ import (
 	"github.com/ednesic/vote-test/tests"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"gopkg.in/h2non/gock.v1"
 	"gopkg.in/mgo.v2/dbtest"
 )
 
 var Server dbtest.DBServer
-
-// func Test_getElectionEnd(t *testing.T) {
-// 	const server = "http://localhost"
-// 	defer gock.Off()
-
-// 	tests := []struct {
-// 		name       string
-// 		reply      int
-// 		errorReply error
-// 		jsonRes    string
-// 		wantErr    bool
-// 		err        string
-// 		id         int32
-// 	}{
-// 		{"Election termination found", 200, nil, `{"id": 1, "end": { "seconds": 1536525322 }}`, false, "", 1},
-// 		{"Error on get", 500, errors.New("fail on get"), "nil", true, "fail on get", 2},
-// 		{"Election not ok", 404, nil, "election not found", true, "election not found", 4},
-// 		{"Election unmarshal error", 200, nil, `{city: 3, "end": { "seconds": 1536525322 }}`, true, "invalid character", 5},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-
-// 			if tt.errorReply != nil {
-// 				gock.New(server).
-// 					Get("/election/" + fmt.Sprint(tt.id)).
-// 					ReplyError(tt.errorReply)
-// 			} else {
-// 				gock.New(server).
-// 					Get("/election/" + fmt.Sprint(tt.id)).
-// 					Reply(tt.reply).
-// 					BodyString(tt.jsonRes)
-// 			}
-
-// 			termino, err := verifyElection(server, tt.id)
-// 			if !tt.wantErr {
-// 				var e pb.Election
-// 				json.Unmarshal([]byte(tt.jsonRes), &e)
-// 				assert.Nil(t, err)
-// 				assert.Equal(t, termino, e.End)
-// 				return
-// 			}
-
-// 			assert.NotNil(t, err)
-// 			assert.Contains(t, err.Error(), tt.err)
-// 		})
-// 	}
-// }
 
 func Test_isElectionOver(t *testing.T) {
 	tbefore := ptypes.TimestampNow()
@@ -139,6 +95,60 @@ func Test_containsString(t *testing.T) {
 			if got := containsString(tt.args.s, tt.args.arr); got != tt.want {
 				t.Errorf("containsCandidate() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func Test_getElectionEnd(t *testing.T) {
+	const server = "http://localhost"
+	defer gock.Off()
+	const id = 1
+
+	tests := []struct {
+		name              string
+		reply             int
+		errorReply        error
+		jsonRes           string
+		expectedErr       string
+		containsStringRes bool
+		isElectionOverRes bool
+	}{
+		{"Election valid", 200, nil, "{}", "", true, false},
+		{"Election over", 200, nil, "{}", errElectionEnded, true, true},
+		{"Candidate not found", 200, nil, "{}", errCandidateNotFound, false, false},
+		{"Election invalid", 404, nil, errCandidateNotFound, errCandidateNotFound, true, true},
+		{"Err on request", 0, errors.New("internal error"), "", "internal error", true, false},
+		{"Unmarshal fail", 200, nil, "{", "unexpected end of JSON input", true, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			containsString = func(s string, arrs []string) bool {
+				return tt.containsStringRes
+			}
+
+			isElectionOver = func(end *timestamp.Timestamp) bool {
+				return tt.isElectionOverRes
+			}
+
+			if tt.errorReply != nil {
+				gock.New(server).
+					Get("/election/" + fmt.Sprint(id)).
+					ReplyError(tt.errorReply)
+			} else {
+				gock.New(server).
+					Get("/election/" + fmt.Sprint(id)).
+					Reply(tt.reply).
+					BodyString(tt.jsonRes)
+			}
+
+			err := verifyElection(server, &pb.Vote{Candidate: "", ElectionId: id})
+			if tt.expectedErr != "" {
+				assert.Contains(t, err.Error(), tt.expectedErr)
+				return
+			}
+
+			assert.Nil(t, err)
 		})
 	}
 }

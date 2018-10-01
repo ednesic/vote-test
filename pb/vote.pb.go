@@ -12,43 +12,15 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the proto package it is being compiled against.
-// A compilation error at this line likely means your copy of the
-// proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
-
 type Vote struct {
-	ElectionId           int32    `protobuf:"varint,1,opt,name=ElectionId,proto3" json:"ElectionId,omitempty"`
-	Candidate            string   `protobuf:"bytes,2,opt,name=Candidate,proto3" json:"Candidate,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	ElectionId int32  `protobuf:"varint,1,opt,name=ElectionId" json:"ElectionId,omitempty"`
+	Candidate  string `protobuf:"bytes,2,opt,name=Candidate" json:"Candidate,omitempty"`
 }
 
-func (m *Vote) Reset()         { *m = Vote{} }
-func (m *Vote) String() string { return proto.CompactTextString(m) }
-func (*Vote) ProtoMessage()    {}
-func (*Vote) Descriptor() ([]byte, []int) {
-	return fileDescriptor_vote_97633cffd7e423d9, []int{0}
-}
-func (m *Vote) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_Vote.Unmarshal(m, b)
-}
-func (m *Vote) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_Vote.Marshal(b, m, deterministic)
-}
-func (dst *Vote) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Vote.Merge(dst, src)
-}
-func (m *Vote) XXX_Size() int {
-	return xxx_messageInfo_Vote.Size(m)
-}
-func (m *Vote) XXX_DiscardUnknown() {
-	xxx_messageInfo_Vote.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_Vote proto.InternalMessageInfo
+func (m *Vote) Reset()                    { *m = Vote{} }
+func (m *Vote) String() string            { return proto.CompactTextString(m) }
+func (*Vote) ProtoMessage()               {}
+func (*Vote) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{0} }
 
 func (m *Vote) GetElectionId() int32 {
 	if m != nil {
@@ -68,9 +40,9 @@ func init() {
 	proto.RegisterType((*Vote)(nil), "Vote")
 }
 
-func init() { proto.RegisterFile("vote.proto", fileDescriptor_vote_97633cffd7e423d9) }
+func init() { proto.RegisterFile("vote.proto", fileDescriptor1) }
 
-var fileDescriptor_vote_97633cffd7e423d9 = []byte{
+var fileDescriptor1 = []byte{
 	// 100 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x2a, 0xcb, 0x2f, 0x49,
 	0xd5, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x57, 0x72, 0xe1, 0x62, 0x09, 0xcb, 0x2f, 0x49, 0x15, 0x92,
