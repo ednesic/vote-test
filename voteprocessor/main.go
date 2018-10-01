@@ -109,42 +109,53 @@ func (s *spec) procVote(msg *stan.Msg) {
 		return
 	}
 
-	end, err := getElectionEnd(s.ElectionService, v.GetElectionId())
+	err = verifyElection(s.ElectionService, &v)
 	if err != nil {
-		return
-	}
-
-	if isElectionOver(end) {
-		err = errors.New(errElectionEnded)
 		return
 	}
 
 	err = vote(s.mgoDal, s.Coll, &v)
 }
 
-func getElectionEnd(serviceName string, id int32) (*timestamp.Timestamp, error) {
+func verifyElection(serviceName string, vote *pb.Vote) error {
 	var e pb.Election
-	resp, err := http.Get(serviceName + "/election/" + fmt.Sprint(id))
+	resp, err := http.Get(serviceName + "/election/" + fmt.Sprint(vote.GetElectionId()))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(string(body))
+		return errors.New(string(body))
 	}
 
-	err = json.Unmarshal(body, &e)
-	if err != nil {
-		return nil, err
+	if json.Unmarshal(body, &e) != nil {
+		return err
 	}
 
-	return e.End, nil
+	if isElectionOver(e.End) {
+		return errors.New(errElectionEnded)
+	}
+
+	if !containsString(vote.Candidate, e.Candidates) {
+		return errors.New("candidate not found")
+	}
+
+	return nil
+}
+
+func containsString(s string, arrs []string) bool {
+	for _, a := range arrs {
+		if a == s {
+			return true
+		}
+	}
+	return false
 }
 
 func isElectionOver(end *timestamp.Timestamp) bool {

@@ -93,7 +93,7 @@ func (s *server) upsert(w http.ResponseWriter, r *http.Request) {
 		stsCode  = http.StatusCreated
 	)
 	defer func() {
-		defer s.logger.Info(http.MethodPut+serviceName, zap.Error(err), zap.Int32(elecIDKey, election.Id), zap.Int(stsCodeKey, stsCode))
+		defer s.logger.Info(http.MethodPut+serviceName, zap.Error(err), zap.Int32(elecIDKey, election.GetId()), zap.Int(stsCodeKey, stsCode))
 	}()
 
 	err = json.NewDecoder(r.Body).Decode(&election)
@@ -103,14 +103,14 @@ func (s *server) upsert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if election.Id == 0 || len(election.Candidates) == 0 {
+	if election.GetId() == 0 || len(election.GetCandidates()) == 0 {
 		stsCode = http.StatusBadRequest
 		http.Error(w, errInvalidData, stsCode)
 		return
 	}
 
 	election.Start = ptypes.TimestampNow()
-	err = s.mgoDal.Upsert(s.Collection, bson.M{elecIDKey: election.Id}, &election)
+	err = s.mgoDal.Upsert(s.Collection, bson.M{elecIDKey: election.GetId()}, &election)
 	if err != nil {
 		stsCode = http.StatusInternalServerError
 		http.Error(w, errUpsert, stsCode)
@@ -131,7 +131,7 @@ func (s *server) get(w http.ResponseWriter, r *http.Request) {
 		id       int64
 	)
 	defer func() {
-		defer s.logger.Info(http.MethodGet+serviceName, zap.Error(err), zap.Int32(elecIDKey, election.Id), zap.Int(stsCodeKey, stsCode))
+		defer s.logger.Info(http.MethodGet+serviceName, zap.Error(err), zap.Int32(elecIDKey, election.GetId()), zap.Int(stsCodeKey, stsCode))
 	}()
 
 	id, err = strconv.ParseInt(vars[elecIDKey], 10, 32)
@@ -167,7 +167,7 @@ func (s *server) delete(w http.ResponseWriter, r *http.Request) {
 		id       int64
 	)
 	defer func() {
-		defer s.logger.Info(http.MethodDelete+serviceName, zap.Error(err), zap.Int32(elecIDKey, election.Id), zap.Int(stsCodeKey, stsCode))
+		defer s.logger.Info(http.MethodDelete+serviceName, zap.Error(err), zap.Int32(elecIDKey, election.GetId()), zap.Int(stsCodeKey, stsCode))
 	}()
 
 	id, err = strconv.ParseInt(vars[elecIDKey], 10, 32)

@@ -151,7 +151,3 @@ func Test_server_initRoutes(t *testing.T) {
 		})
 	}
 }
-
-/*******************************************/
-/** Tests that must have mongod installed **/
-/*******************************************/
